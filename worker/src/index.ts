@@ -17,7 +17,7 @@ export interface Env {
   DB: D1Database;
   R2: R2Bucket;
   JWT_SECRET: string;
-  ANTHROPIC_API_KEY: string;
+  ANTHROPIC_API_KEY_MADPLAN: string;
   ENVIRONMENT: string;
 }
 

@@ -4,7 +4,7 @@ import { suggestRecipes, suggestPlan } from '../lib/ai';
 interface Env {
   DB: D1Database;
   JWT_SECRET: string;
-  ANTHROPIC_API_KEY: string;
+  ANTHROPIC_API_KEY_MADPLAN: string;
 }
 
 export async function handleAISuggestRecipes(request: Request, env: Env): Promise<Response> {
@@ -13,7 +13,7 @@ export async function handleAISuggestRecipes(request: Request, env: Env): Promis
   const { prompt } = await request.json() as { prompt: string };
   if (!prompt) return Response.json({ error: 'Prompt er påkrævet' }, { status: 400 });
 
-  const suggestions = await suggestRecipes(prompt, env.ANTHROPIC_API_KEY);
+  const suggestions = await suggestRecipes(prompt, env.ANTHROPIC_API_KEY_MADPLAN);
   return Response.json(suggestions);
 }
 
@@ -44,6 +44,6 @@ export async function handleAISuggestPlan(request: Request, env: Env): Promise<R
     }));
   }
 
-  const plan = await suggestPlan(prompt, days, existingRecipes, env.ANTHROPIC_API_KEY);
+  const plan = await suggestPlan(prompt, days, existingRecipes, env.ANTHROPIC_API_KEY_MADPLAN);
   return Response.json(plan);
 }
