@@ -6,6 +6,7 @@ compatibility_date = "2024-01-01"
 binding = "DB"
 database_name = "madplan-db"
 database_id = "39ea9b83-d104-48f0-88a2-ac912594fec2"
+migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "R2"
@@ -13,7 +14,3 @@ bucket_name = "madplan-assets"
 
 [vars]
 ENVIRONMENT = "production"
-
-[[migrations]]
-tag = "v1"
-new_classes = []
