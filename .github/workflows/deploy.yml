@@ -40,7 +40,7 @@ jobs:
       - name: Run DB Migrations
         run: |
           cd worker
-          npx wrangler d1 migrations apply madplan-db --remote
+          npx wrangler d1 migrations apply madplan-db --remote --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
