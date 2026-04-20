@@ -1,0 +1,21 @@
+id,name,sort_order
+cat-1,Frugt & grønt,1
+cat-2,Krydderier,12
+cat-3,Mejeri & æg,6
+cat-4,Kød & fisk,3
+cat-5,Pålæg,4
+cat-6,Brød & bagværk,2
+cat-7,Ris & pasta,15
+cat-8,Konserves,14
+cat-9,Frost,5
+cat-10,Øl & Sodavand,10
+cat-11,Rengøring & husholdning,18
+cat-12,Andet,99
+cat-13,Ost,7
+cat-14,Vin,11
+cat-15,Personlig pleje,19
+cat-16,Slik & chips,20
+cat-17,Saft & juice,9
+cat-18,Mel & bag,17
+cat-19,Gryn & cereal,8
+cat-20,Olie & sauce,13

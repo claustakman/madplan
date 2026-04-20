@@ -1,0 +1,195 @@
+name,category
+Æbler,Frugt & grønt
+Bananer,Frugt & grønt
+Appelsiner,Frugt & grønt
+Citroner,Frugt & grønt
+Lime,Frugt & grønt
+Pærer,Frugt & grønt
+Druer,Frugt & grønt
+Jordbær,Frugt & grønt
+Blåbær,Frugt & grønt
+Hindbær,Frugt & grønt
+Mango,Frugt & grønt
+Avocado,Frugt & grønt
+Tomater,Frugt & grønt
+Cherrytomater,Frugt & grønt
+Agurk,Frugt & grønt
+Salat,Frugt & grønt
+Rucola,Frugt & grønt
+Spinat,Frugt & grønt
+Gulerødder,Frugt & grønt
+Broccoli,Frugt & grønt
+Blomkål,Frugt & grønt
+Hvidkål,Frugt & grønt
+Rødkål,Frugt & grønt
+Løg,Frugt & grønt
+Rødløg,Frugt & grønt
+Forårsløg,Frugt & grønt
+Hvidløg,Frugt & grønt
+Porrer,Frugt & grønt
+Selleri,Frugt & grønt
+Pastinak,Frugt & grønt
+Rødbeder,Frugt & grønt
+Radiser,Frugt & grønt
+Peberfrugt rød,Frugt & grønt
+Peberfrugt gul,Frugt & grønt
+Peberfrugt grøn,Frugt & grønt
+Habanerochili,Frugt & grønt
+Jalapeno,Frugt & grønt
+Squash,Frugt & grønt
+Aubergine,Frugt & grønt
+Majs,Frugt & grønt
+Ærter,Frugt & grønt
+Bønner grønne,Frugt & grønt
+Kartofler,Frugt & grønt
+Søde kartofler,Frugt & grønt
+Svampe,Frugt & grønt
+Champignon,Frugt & grønt
+Persille,Krydderier
+Basilikum,Krydderier
+Koriander,Krydderier
+Timian,Krydderier
+Rosmarin,Krydderier
+Oregano,Krydderier
+Dild,Krydderier
+Mynte,Krydderier
+Ingefær,Krydderier
+Salt,Krydderier
+Peber,Krydderier
+Paprika,Krydderier
+Spidskommen,Krydderier
+Karry,Krydderier
+Gurkemeje,Krydderier
+Kanel,Krydderier
+Chiliflager,Krydderier
+Sennep,Krydderier
+Mælk,Mejeri & æg
+Sødmælk,Mejeri & æg
+Madlavningsfløde,Mejeri & æg
+Piskefløde,Mejeri & æg
+Creme fraiche 18%,Mejeri & æg
+Creme fraiche 38%,Mejeri & æg
+Smør,Mejeri & æg
+Margarine,Mejeri & æg
+Hytteost,Mejeri & æg
+Skyr,Mejeri & æg
+Yoghurt naturel,Mejeri & æg
+Cremefraiche,Mejeri & æg
+Æg,Mejeri & æg
+Kyllingebryst,Kød & fisk
+Kyllingelår,Kød & fisk
+Hakket kylling,Kød & fisk
+Oksekød hakket,Kød & fisk
+Oksebøf,Kød & fisk
+Svinekød hakket,Kød & fisk
+Svinekotelet,Kød & fisk
+Flæskesteg,Kød & fisk
+Bacon,Kød & fisk
+Lam hakket,Kød & fisk
+Lammekølle,Kød & fisk
+Laks,Kød & fisk
+Torsk,Kød & fisk
+Rejer,Kød & fisk
+Rødspætte,Kød & fisk
+Skinke,Pålæg
+Spegepølse,Pålæg
+Leverpostej,Pålæg
+Salami,Pålæg
+Rullepølse,Pålæg
+Roastbeef,Pålæg
+Franskbrød,Brød & bagværk
+Rugbrød,Brød & bagværk
+Grovbrød,Brød & bagværk
+Burgerboller,Brød & bagværk
+Pitabrød,Brød & bagværk
+Tortilla,Brød & bagværk
+Bagel,Brød & bagværk
+Ciabatta,Brød & bagværk
+Spaghetti,Ris & pasta
+Penne,Ris & pasta
+Fusilli,Ris & pasta
+Lasagneplader,Ris & pasta
+Ris,Ris & pasta
+Basmatiris,Ris & pasta
+Jasminris,Ris & pasta
+Couscous,Ris & pasta
+Bulgur,Ris & pasta
+Quinoa,Ris & pasta
+Kokosmælk på dåse,Konserves
+Hakkede tomater,Konserves
+Tomatpuré,Konserves
+Kidneybønner på dåse,Konserves
+Kikærter på dåse,Konserves
+Linser på dåse,Konserves
+Majs på dåse,Konserves
+Tun på dåse,Konserves
+Makrel i tomat,Konserves
+Ananas på dåse,Konserves
+Oliven,Konserves
+Kapers,Konserves
+Cornichoner,Konserves
+Hønsebouillon,Konserves
+Oksebouillon,Konserves
+Grøntsagsbouillon,Konserves
+Ærter frosne,Frost
+Majs frosne,Frost
+Spinat frosne,Frost
+Blåbær frosne,Frost
+Hindbær frosne,Frost
+Pommes frites frosne,Frost
+Fiskefrikadeller frosne,Frost
+Øl,Øl & Sodavand
+Cola,Øl & Sodavand
+Sodavand,Øl & Sodavand
+Mineralvand,Øl & Sodavand
+Mozzarella,Ost
+Feta,Ost
+Parmesan,Ost
+Rygeost,Ost
+Danbo,Ost
+Gouda,Ost
+Emmentaler,Ost
+Brie,Ost
+Revet ost,Ost
+Rødvin,Vin
+Hvidvin,Vin
+Rosévin,Vin
+Juice appelsin,Saft & juice
+Juice æble,Saft & juice
+Smoothie,Saft & juice
+Saftevand,Saft & juice
+Hvedemel,Mel & bag
+Rugmel,Mel & bag
+Ølandshvedemel,Mel & bag
+Groft mel,Mel & bag
+Sukker,Mel & bag
+Flormelis,Mel & bag
+Bagepulver,Mel & bag
+Natron,Mel & bag
+Gær,Mel & bag
+Tørgær,Mel & bag
+Havregryn fine,Gryn & cereal
+Havregryn grove,Gryn & cereal
+Cornflakes,Gryn & cereal
+Mysli,Gryn & cereal
+Linser,Gryn & cereal
+Kikærter,Gryn & cereal
+Sorte bønner,Gryn & cereal
+Kidneybønner,Gryn & cereal
+Olivenolie,Olie & sauce
+Rapsolie,Olie & sauce
+Sesamolie,Olie & sauce
+Soja,Olie & sauce
+Worcestershiresauce,Olie & sauce
+Tabasco,Olie & sauce
+Hoisinsauce,Olie & sauce
+Fishsauce,Olie & sauce
+Jordnøddesmør,Olie & sauce
+Syltetøj,Olie & sauce
+Nutella,Olie & sauce
+Slik,Slik & chips
+Chokolade,Slik & chips
+Chips,Slik & chips
+Kaffe,Andet
+Te,Andet
+Vand,Andet
