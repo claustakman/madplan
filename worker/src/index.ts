@@ -1,6 +1,7 @@
 import { handleLogin, handleMe } from './routes/auth';
 import { handleUsers, handleUser } from './routes/users';
 import { handleShopping, handleShoppingItem, handleShoppingCheck } from './routes/shopping';
+import { handleIngredients, handleIngredientCategories } from './routes/ingredients';
 import { handleRecipes, handleRecipe, handleRecipeImage } from './routes/recipes';
 import {
   handleMealPlans,
@@ -45,14 +46,14 @@ export default {
     try {
       let response: Response;
 
-      // Auth routes
+      // Auth
       if (path === '/api/auth/login' && request.method === 'POST') {
         response = await handleLogin(request, env);
       } else if (path === '/api/auth/me' && request.method === 'GET') {
         response = await handleMe(request, env);
       }
 
-      // User routes
+      // Users
       else if (path === '/api/users') {
         response = await handleUsers(request, env, url);
       } else if (path.startsWith('/api/users/')) {
@@ -60,8 +61,10 @@ export default {
         response = await handleUser(request, env, id);
       }
 
-      // Shopping routes
-      else if (path === '/api/shopping' || (path === '/api/shopping' && request.method === 'DELETE')) {
+      // Shopping — order matters: /checked before /:id, /check after /:id/check
+      else if (path === '/api/shopping') {
+        response = await handleShopping(request, env);
+      } else if (path === '/api/shopping/checked' && request.method === 'DELETE') {
         response = await handleShopping(request, env);
       } else if (path.match(/^\/api\/shopping\/[^/]+\/check$/)) {
         const id = path.split('/')[3];
@@ -71,14 +74,14 @@ export default {
         response = await handleShoppingItem(request, env, id);
       }
 
-      // Ingredient routes
-      else if (path === '/api/ingredients') {
-        response = await handleIngredients(request, env, url);
-      } else if (path === '/api/ingredients/categories') {
+      // Ingredients — /categories before /:id pattern
+      else if (path === '/api/ingredients/categories') {
         response = await handleIngredientCategories(request, env);
+      } else if (path === '/api/ingredients') {
+        response = await handleIngredients(request, env, url);
       }
 
-      // Recipe routes
+      // Recipes
       else if (path === '/api/recipes') {
         response = await handleRecipes(request, env, url);
       } else if (path.match(/^\/api\/recipes\/[^/]+\/image$/)) {
@@ -89,7 +92,7 @@ export default {
         response = await handleRecipe(request, env, id);
       }
 
-      // Meal plan routes
+      // Meal plans
       else if (path === '/api/mealplans/current') {
         response = await handleMealPlanCurrent(request, env);
       } else if (path === '/api/mealplans') {
@@ -108,12 +111,12 @@ export default {
         response = await handleMealPlanDelete(request, env, id);
       }
 
-      // Template routes
+      // Templates
       else if (path === '/api/templates') {
         response = await handleTemplates(request, env);
       }
 
-      // AI routes
+      // AI
       else if (path === '/api/ai/suggest-recipes') {
         response = await handleAISuggestRecipes(request, env);
       } else if (path === '/api/ai/suggest-plan') {
@@ -132,40 +135,3 @@ export default {
     }
   },
 };
-
-async function handleIngredients(request: Request, env: Env, url: URL): Promise<Response> {
-  const { requireAuth } = await import('./lib/auth');
-  await requireAuth(request, env);
-
-  if (request.method === 'GET') {
-    const q = url.searchParams.get('q');
-    if (q) {
-      const { results } = await env.DB.prepare('SELECT * FROM ingredients WHERE name LIKE ? ORDER BY name LIMIT 20')
-        .bind(`%${q}%`).all();
-      return Response.json(results);
-    }
-    const { results } = await env.DB.prepare('SELECT * FROM ingredients ORDER BY name').all();
-    return Response.json(results);
-  }
-
-  if (request.method === 'POST') {
-    const { requireAuth: ra } = await import('./lib/auth');
-    await ra(request, env);
-    const { name, category_id } = await request.json() as { name: string; category_id?: string };
-    if (!name) return Response.json({ error: 'Navn er påkrævet' }, { status: 400 });
-
-    const id = crypto.randomUUID();
-    await env.DB.prepare('INSERT INTO ingredients (id, name, category_id) VALUES (?, ?, ?)')
-      .bind(id, name, category_id ?? null).run();
-    return Response.json({ id, name, category_id }, { status: 201 });
-  }
-
-  return Response.json({ error: 'Method not allowed' }, { status: 405 });
-}
-
-async function handleIngredientCategories(request: Request, env: Env): Promise<Response> {
-  const { requireAuth } = await import('./lib/auth');
-  await requireAuth(request, env);
-  const { results } = await env.DB.prepare('SELECT * FROM ingredient_categories ORDER BY sort_order').all();
-  return Response.json(results);
-}
