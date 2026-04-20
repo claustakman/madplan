@@ -1,5 +1,5 @@
 const BASE_URL = import.meta.env.PROD
-  ? 'https://madplan-worker.claustakman.workers.dev'
+  ? 'https://madplan-worker.claus-takman.workers.dev'
   : '';
 
 async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
