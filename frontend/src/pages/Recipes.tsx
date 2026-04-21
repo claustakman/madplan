@@ -642,8 +642,8 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: 'ellipsis',
   },
   filterBtnActive: {
-    background: '#e8f5e9',
-    color: '#2e7d32',
+    background: '#e3f0fc',
+    color: '#1565C0',
     borderColor: 'var(--accent)',
   },
   filterChevron: {
@@ -744,8 +744,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     padding: '2px 8px',
     borderRadius: 10,
-    background: '#e8f5e9',
-    color: '#2e7d32',
+    background: '#e3f0fc',
+    color: '#1565C0',
   },
   empty: {
     padding: '40px 16px',

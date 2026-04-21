@@ -216,7 +216,9 @@ function ItemRow({ item, onCheck, onLongPress }: {
         </span>
         {(showQty || item.store) && (
           <span style={s.itemMeta}>
-            {[showQty ? item.quantity : null, item.store].filter(Boolean).join(' · ')}
+            {showQty && <span style={s.itemQty}>{item.quantity}</span>}
+            {showQty && item.store && <span style={s.itemMetaSep}> · </span>}
+            {item.store && <span style={s.itemStore}>{item.store}</span>}
           </span>
         )}
         {isChecked && item.checked_by_name && (
@@ -246,6 +248,7 @@ function AddModal({ onClose, onAdded }: {
   const [categories, setCategories] = useState<Category[]>([]);
   const [adding, setAdding] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noMatchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -255,13 +258,18 @@ function AddModal({ onClose, onAdded }: {
 
   const search = (val: string) => {
     setQuery(val);
+    // Clear noMatch immediately on new input so category grid disappears while typing
+    if (noMatchRef.current) clearTimeout(noMatchRef.current);
     setNoMatch(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!val.trim()) { setSuggestions([]); return; }
     debounceRef.current = setTimeout(async () => {
       const data = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(val)}`).catch(() => []);
       setSuggestions(data);
-      setNoMatch(data.length === 0);
+      if (data.length === 0) {
+        // Delay showing the "no match" category grid by 600ms to avoid flicker while typing
+        noMatchRef.current = setTimeout(() => setNoMatch(true), 600);
+      }
     }, 300);
   };
 
@@ -464,7 +472,8 @@ const s: Record<string, React.CSSProperties> = {
   group: { marginBottom: 4 },
   groupHeader: {
     fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-    color: 'var(--text-secondary)', padding: '14px 16px 4px',
+    color: 'var(--accent-dark)', padding: '8px 16px 6px',
+    background: '#e3f0fc', borderBottom: '1px solid #b3d1f0',
   },
   item: {
     display: 'flex', alignItems: 'center', gap: 12,
@@ -483,7 +492,10 @@ const s: Record<string, React.CSSProperties> = {
   itemContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   itemName: { fontSize: 16, color: 'var(--text-primary)' },
   strikethrough: { textDecoration: 'line-through', color: 'var(--text-secondary)' },
-  itemMeta: { fontSize: 13, color: 'var(--text-secondary)' },
+  itemMeta: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 0 },
+  itemQty: { fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 },
+  itemMetaSep: { color: 'var(--text-secondary)', fontSize: 13 },
+  itemStore: { color: '#7B1FA2', fontSize: 13 },
   checkedBy: { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' },
   detailTrigger: {
     flexShrink: 0, width: 36, height: 44, display: 'flex', alignItems: 'center',
@@ -497,7 +509,7 @@ const s: Record<string, React.CSSProperties> = {
     bottom: 'calc(var(--nav-height) + env(safe-area-inset-bottom) + 16px)',
     right: 20, width: 56, height: 56, borderRadius: 28,
     background: 'var(--accent)', color: '#fff', fontSize: 24,
-    border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(76,175,80,0.4)',
+    border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(25,118,210,0.4)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
   },
 
