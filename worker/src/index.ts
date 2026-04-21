@@ -2,7 +2,7 @@ import { handleLogin, handleMe } from './routes/auth';
 import { handleUsers, handleUser } from './routes/users';
 import { handleShopping, handleShoppingItem, handleShoppingCheck } from './routes/shopping';
 import { handleIngredients, handleIngredient, handleIngredientCategories, handleIngredientCategory } from './routes/ingredients';
-import { handleRecipes, handleRecipe, handleRecipeImage } from './routes/recipes';
+import { handleRecipes, handleRecipe, handleRecipeIngredients, handleRecipeImage } from './routes/recipes';
 import {
   handleMealPlans,
   handleMealPlanCurrent,
@@ -90,6 +90,9 @@ export default {
       // Recipes
       else if (path === '/api/recipes') {
         response = await handleRecipes(request, env, url);
+      } else if (path.match(/^\/api\/recipes\/[^/]+\/ingredients$/)) {
+        const id = path.split('/')[3];
+        response = await handleRecipeIngredients(request, env, id);
       } else if (path.match(/^\/api\/recipes\/[^/]+\/image$/)) {
         const id = path.split('/')[3];
         response = await handleRecipeImage(request, env, id);

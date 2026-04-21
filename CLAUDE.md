@@ -3,6 +3,8 @@
 App til delt madplanlægning, opskriftskatalog og indkøbsliste med AI-assistance.
 
 GitHub repo: https://github.com/claustakman/madplan
+Frontend URL: https://madplan.pages.dev
+Worker URL: https://madplan-worker.claus-takman.workers.dev
 
 ---
 
@@ -14,7 +16,7 @@ GitHub repo: https://github.com/claustakman/madplan
 | API       | Cloudflare Workers (TypeScript)    |
 | Database  | Cloudflare D1 (SQLite)             |
 | Storage   | Cloudflare R2 (opskriftsbilleder)  |
-| AI        | Anthropic Claude API (claude-sonnet-4-20250514) |
+| AI        | Anthropic Claude API               |
 | CI/CD     | GitHub Actions                     |
 
 ---
@@ -27,9 +29,15 @@ madplan/
 ├── MADPLAN-SPEC.md
 ├── database/
 │   ├── schema.sql
-│   └── seed.sql
+│   ├── categories.csv       ← 20 kategorier med id, name, sort_order
+│   └── ingredients.csv      ← ~194 ingredienser med name, category name
 ├── worker/
 │   ├── wrangler.toml
+│   ├── migrations/
+│   │   ├── 0001_initial.sql
+│   │   ├── 0002_categories_and_ingredients.sql
+│   │   ├── 0003_ingredients_times_bought.sql
+│   │   └── 0004_ingredients_defaults.sql
 │   └── src/
 │       ├── index.ts
 │       ├── lib/
@@ -39,6 +47,7 @@ madplan/
 │           ├── auth.ts
 │           ├── users.ts
 │           ├── shopping.ts
+│           ├── ingredients.ts
 │           ├── recipes.ts
 │           ├── mealplan.ts
 │           ├── templates.ts
@@ -65,7 +74,8 @@ madplan/
 │           ├── Recipes.tsx
 │           ├── MealPlan.tsx
 │           ├── Archive.tsx
-│           └── Profile.tsx
+│           ├── Profile.tsx
+│           └── Settings.tsx
 └── .github/
     └── workflows/
         ├── deploy.yml
@@ -111,7 +121,10 @@ CREATE TABLE ingredient_categories (
 CREATE TABLE ingredients (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  category_id TEXT REFERENCES ingredient_categories(id)
+  category_id TEXT REFERENCES ingredient_categories(id),
+  times_bought INTEGER NOT NULL DEFAULT 0,  -- incremented on check-off
+  default_quantity TEXT,                     -- pre-filled when adding to list
+  default_store TEXT                         -- pre-filled when adding to list
 );
 ```
 
@@ -194,9 +207,10 @@ CREATE TABLE meal_plan_days (
 ```typescript
 // Alle routes tjekker JWT via requireAuth(request, env)
 // Rolle-tjek: requireRole(user, 'admin')
-// CORS headers på alle responses
+// CORS headers på alle responses via withCors()
 // Alle IDs genereres med crypto.randomUUID()
 // Timestamps: new Date().toISOString()
+// requireAuth() kaster en Response (fanges i index.ts catch block)
 ```
 
 ## Auth
@@ -205,7 +219,9 @@ CREATE TABLE meal_plan_days (
 - Token indeholder: `{ sub: userId, role, name, exp }`
 - `JWT_SECRET` sættes som Worker secret (ikke i wrangler.toml)
 - Ingen refresh tokens — tokens lever 30 dage
-- Kodeord hashes med bcrypt (brug `bcryptjs` npm-pakken)
+- Kodeord hashes med `bcryptjs` (pure JS — Node.js bcrypt virker ikke i Workers)
+- JWT implementeret fra scratch med Web Crypto API (ingen jsonwebtoken)
+- Key fix: `new TextEncoder().encode(...).buffer as ArrayBuffer` for Uint8Array → ArrayBuffer cast
 
 ---
 
@@ -213,7 +229,7 @@ CREATE TABLE meal_plan_days (
 
 ```typescript
 const BASE_URL = import.meta.env.PROD
-  ? 'https://madplan-worker.DITBRUGERNAVN.workers.dev'
+  ? 'https://madplan-worker.claus-takman.workers.dev'
   : 'http://localhost:8787';
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -243,10 +259,11 @@ Token gemmes i `localStorage` under nøglen `madplan_token`.
   - `--text-primary: #1a1a1a`
   - `--text-secondary: #666666`
   - `--border: #e0e0e0`
+  - `--danger: #e53935`
 - `font-size: 16px` på alle inputs (undgår iOS auto-zoom)
 - Touch targets: `min-height: 44px` på knapper og inputs
-- Bundnavigation (fast, 3 ikoner): 🛒 Indkøb · 🍽️ Madplan · 📖 Opskrifter
-- Mere-panel (☰ slide-up): Arkiv · Profil · Log ud
+- Bundnavigation (fast, 4 ikoner): 🛒 Indkøb · 🍽️ Madplan · 📖 Opskrifter · ☰ Mere
+- Mere-panel (slide-up sheet): Arkiv · Indstillinger · Profil · [Brugere — kun admin] · Log ud
 - `padding-bottom: env(safe-area-inset-bottom)` på bundnav
 
 ---
@@ -268,28 +285,33 @@ jobs:
           node-version: 20
       - name: Deploy Worker
         run: |
-          cd worker
-          npm ci
-          npx wrangler deploy
+          cd worker && npm ci && npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Build Frontend
         run: |
-          cd frontend
-          npm ci
-          npm run build
+          cd frontend && npm ci && npm run build
       - name: Deploy Pages
+        # Run from worker/ dir so wrangler is available, point to ../frontend/dist
         run: |
-          cd frontend
-          npx wrangler pages deploy dist --project-name=madplan
+          cd worker && npx wrangler pages deploy ../frontend/dist --project-name=madplan
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  migrate:
+    runs-on: ubuntu-latest
+    # Only runs when migration files change
+    if: contains(join(github.event.commits.*.modified, ','), 'migrations/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - name: Run DB Migrations
         run: |
-          cd worker
-          npx wrangler d1 migrations apply madplan-db --remote
+          cd worker && npm ci && npx wrangler d1 migrations apply madplan-db --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -307,7 +329,8 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "madplan-db"
-database_id = "INDSÆT-EFTER-OPRETTELSE"
+database_id = "39ea9b83-d104-48f0-88a2-ac912594fec2"
+migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "R2"
@@ -317,11 +340,21 @@ bucket_name = "madplan-assets"
 ENVIRONMENT = "production"
 ```
 
-`JWT_SECRET` og `ANTHROPIC_API_KEY` sættes som Worker secrets via:
+`JWT_SECRET` og `ANTHROPIC_API_KEY_MADPLAN` sættes som Worker secrets via:
 ```bash
 wrangler secret put JWT_SECRET
-wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put ANTHROPIC_API_KEY_MADPLAN
 ```
+
+GitHub Actions secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+
+---
+
+## D1 SQLite quirks
+
+- Boolean-felter returneres som `0`/`1` integers, ikke true/false — brug `Boolean(item.checked)`
+- DEFAULT 0 kolonner returnerer `0` (ikke null) — tjek `Number(item.times_bought) > 0`
+- Vis kun quantity hvis `item.quantity && item.quantity !== '1'`
 
 ---
 
@@ -334,26 +367,35 @@ wrangler secret put ANTHROPIC_API_KEY
 - Soft delete bruges **ikke** i denne app — hard delete er OK
 - D1-migrationer som nummererede `.sql`-filer i `worker/migrations/`
 - R2-billeder: `recipes/{uuid}/{filename}` — max 10 MB, kun billedformater
-- CORS: tillad `*` i development, Pages-URL i production
+- CORS: `*` (tillades for alle origins)
+- `requireAuth()` kaster en `Response` — fanges i `index.ts` catch-blok
 
 ---
 
-## Seed-data (ingredient_categories)
+## Seed-data (ingredient_categories) — 20 kategorier
 
 ```sql
 INSERT INTO ingredient_categories (id, name, sort_order) VALUES
-  ('cat-1', 'Frugt & grønt', 1),
-  ('cat-2', 'Urter & krydderier', 2),
-  ('cat-3', 'Mejeri & æg', 3),
-  ('cat-4', 'Kød & fisk', 4),
-  ('cat-5', 'Pålæg & ost', 5),
-  ('cat-6', 'Brød & bagværk', 6),
-  ('cat-7', 'Tørvarer & pasta', 7),
-  ('cat-8', 'Dåser & glas', 8),
-  ('cat-9', 'Frost', 9),
-  ('cat-10', 'Drikkevarer', 10),
-  ('cat-11', 'Rengøring & husholdning', 11),
-  ('cat-12', 'Andet', 99);
+  ('cat-1',  'Frugt & grønt',            1),
+  ('cat-2',  'Urter & krydderier',        2),
+  ('cat-3',  'Mejeri & æg',              3),
+  ('cat-4',  'Kød',                      4),
+  ('cat-5',  'Fisk & skaldyr',           5),
+  ('cat-6',  'Pålæg & ost',              6),
+  ('cat-7',  'Brød & bagværk',           7),
+  ('cat-8',  'Ris & pasta',              8),
+  ('cat-9',  'Tørvarer & konserves',     9),
+  ('cat-10', 'Olie, eddike & saucer',   10),
+  ('cat-11', 'Bagning',                 11),
+  ('cat-12', 'Snacks & slik',           12),
+  ('cat-13', 'Frost',                   13),
+  ('cat-14', 'Drikkevarer',             14),
+  ('cat-15', 'Kaffe & te',              15),
+  ('cat-16', 'Alkohol',                 16),
+  ('cat-17', 'Rengøring',               17),
+  ('cat-18', 'Husholdning',             18),
+  ('cat-19', 'Personlig pleje',         19),
+  ('cat-20', 'Andet',                   99);
 ```
 
 ---
@@ -362,10 +404,32 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 
 | Fase | Indhold                                                            | Status |
 |------|--------------------------------------------------------------------|--------|
-| 1    | Infrastruktur: repo, wrangler, D1, R2, deploy pipeline, auth       | ⬜     |
-| 2    | Indkøbsliste: kategorier, tilføj/fjern/kryds af, polling           | ⬜     |
+| 1    | Infrastruktur: repo, wrangler, D1, R2, deploy pipeline, auth       | ✅     |
+| 2    | Indkøbsliste: kategorier, tilføj/fjern/kryds af, polling           | ✅     |
+| 2b   | Ingredienskatalog + Settings-side (admin: ingredienser, kategorier)| ✅     |
 | 3    | Opskriftskatalog: CRUD, søgning, tags, billeder                    | ⬜     |
 | 4    | Madplan: ugevisning, opskriftsvalg, arkiv, skabeloner              | ⬜     |
-| 5    | "Tilføj til indkøbsliste" fra madplan                             | ⬜     |
+| 5    | "Tilføj til indkøbsliste" fra madplan                              | ⬜     |
 | 6    | AI: opskriftsforslag + madplansforslag                             | ⬜     |
 | 7    | PWA + mobil polish                                                 | ⬜     |
+
+---
+
+## Fase 2 — Implementerede features
+
+### Shopping (indkøbsliste)
+- Polling hvert 5. sekund for real-time sync
+- Optimistisk UI med rollback ved fejl
+- Ingredienser sorteret efter `times_bought DESC, name ASC` i autocomplete
+- `times_bought` på `ingredients` — inkrementeres ved afkrydsning
+- `default_quantity` og `default_store` på `ingredients` — overføres automatisk ved tilføjelse fra katalog
+- One-click tilføjelse fra autocomplete-forslag
+- Fritekst uden match → kategorivælger → tilføjer til liste OG katalog
+- Detaljepanel (slide-up på mobil, sidebar på desktop): viser tilføjet af, købt X gange, redigér antal/butik
+- Slet afkrydsede varer med ét tryk
+
+### Settings (/indstillinger)
+- To faner: Ingredienser og Kategorier
+- Ingredienser: søg, rediger (navn, kategori, standard antal, standard butik), slet
+- Kategorier: rediger (navn, sorteringsrækkefølge), slet (nullstiller kategori på ingredienser/varer)
+- Kun tilgængeligt for alle (ikke kun admin)

@@ -101,6 +101,47 @@ export async function handleRecipe(request: Request, env: Env, id: string): Prom
   return Response.json({ error: 'Method not allowed' }, { status: 405 });
 }
 
+export async function handleRecipeIngredients(request: Request, env: Env, id: string): Promise<Response> {
+  await requireAuth(request, env);
+
+  if (request.method === 'PUT') {
+    const ingredients = await request.json() as Array<{
+      id: string;
+      name: string;
+      quantity?: string | null;
+      ingredient_id?: string | null;
+      category_id?: string | null;
+      sort_order?: number;
+    }>;
+
+    // Replace all ingredients for this recipe
+    await env.DB.prepare('DELETE FROM recipe_ingredients WHERE recipe_id = ?').bind(id).run();
+
+    for (let i = 0; i < ingredients.length; i++) {
+      const ing = ingredients[i];
+      if (!ing.name?.trim()) continue;
+      await env.DB.prepare(
+        'INSERT INTO recipe_ingredients (id, recipe_id, ingredient_id, name, quantity, category_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        ing.id ?? crypto.randomUUID(),
+        id,
+        ing.ingredient_id ?? null,
+        ing.name.trim(),
+        ing.quantity?.trim() || null,
+        ing.category_id ?? null,
+        ing.sort_order ?? i
+      ).run();
+    }
+
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY sort_order'
+    ).bind(id).all();
+    return Response.json(results);
+  }
+
+  return Response.json({ error: 'Method not allowed' }, { status: 405 });
+}
+
 export async function handleRecipeImage(request: Request, env: Env, id: string): Promise<Response> {
   await requireAuth(request, env);
 
