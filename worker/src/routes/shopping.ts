@@ -82,6 +82,16 @@ export async function handleShoppingItem(request: Request, env: Env, id: string)
       id
     ).run();
 
+    // Sync category change to ingredient catalog
+    if (body.category_id !== undefined) {
+      const current = await env.DB.prepare('SELECT name FROM shopping_items WHERE id = ?').bind(id).first<{ name: string }>();
+      if (current) {
+        await env.DB.prepare(
+          'UPDATE ingredients SET category_id = ? WHERE name = ? COLLATE NOCASE'
+        ).bind(body.category_id ?? null, current.name).run();
+      }
+    }
+
     const item = await env.DB.prepare(ITEM_SELECT + ' WHERE s.id = ?').bind(id).first();
     return Response.json(item);
   }

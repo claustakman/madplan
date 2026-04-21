@@ -201,17 +201,6 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
         <label style={s.label}>Link til opskrift</label>
         <input style={s.input} type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" />
 
-        <div style={s.row2}>
-          <div style={{ flex: 1 }}>
-            <label style={s.label}>Portioner</label>
-            <input style={s.input} type="number" min={1} value={servings} onChange={e => setServings(e.target.value)} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={s.label}>Tid (min)</label>
-            <input style={s.input} type="number" min={0} value={prepMinutes} onChange={e => setPrepMinutes(e.target.value)} placeholder="—" />
-          </div>
-        </div>
-
         <label style={s.label}>Tags <span style={s.hint}>(kommaseparerede)</span></label>
         <input style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="vegetar, hurtig, pasta…" />
 

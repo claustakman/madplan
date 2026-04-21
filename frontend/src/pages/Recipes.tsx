@@ -104,13 +104,6 @@ function DetailModal({ recipe, onClose, onSaved, onDeleted }: DetailModalProps) 
           <>
             <div style={styles.modalBody}>
               <div style={styles.viewBody}>
-                <div style={styles.viewMeta}>
-                  {recipe.prep_minutes != null && (
-                    <div style={styles.metaItem}><span style={styles.metaLabel}>Tid</span><span>{recipe.prep_minutes} min</span></div>
-                  )}
-                  <div style={styles.metaItem}><span style={styles.metaLabel}>Portioner</span><span>{recipe.servings}</span></div>
-                </div>
-
                 {recipe.url && (
                   <a
                     href={recipe.url}

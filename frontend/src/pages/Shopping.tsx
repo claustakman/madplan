@@ -371,16 +371,25 @@ function DetailPanel({ item, onClose, onUpdated, onDeleted }: {
 }) {
   const [quantity, setQuantity] = useState(item.quantity ?? '');
   const [store, setStore] = useState(item.store ?? '');
+  const [categoryId, setCategoryId] = useState(item.category_id ?? '');
+  const [categories, setCategories] = useState<Category[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const hasChanges = quantity !== (item.quantity ?? '') || store !== (item.store ?? '');
+  useEffect(() => {
+    apiGet<Category[]>('/api/ingredients/categories').then(setCategories).catch(() => null);
+  }, []);
+
+  const hasChanges =
+    quantity !== (item.quantity ?? '') ||
+    store !== (item.store ?? '') ||
+    (categoryId || null) !== item.category_id;
 
   const save = async () => {
     if (!hasChanges) return;
     setSaving(true);
     const updated = await apiPut<ShoppingItem>(`/api/shopping/${item.id}`, {
       name: item.name,
-      category_id: item.category_id,
+      category_id: categoryId || null,
       quantity: quantity.trim() || null,
       store: store.trim() || null,
     }).catch(() => null);
@@ -394,10 +403,6 @@ function DetailPanel({ item, onClose, onUpdated, onDeleted }: {
         <div style={s.modalHandle} />
         <h2 style={s.detailName}>{item.name}</h2>
 
-        {item.category_name && (
-          <p style={s.detailCat}>📦 {item.category_name}</p>
-        )}
-
         <div style={s.detailStats}>
           {item.added_by_name && (
             <span style={s.stat}>👤 Tilføjet af {item.added_by_name}</span>
@@ -408,6 +413,19 @@ function DetailPanel({ item, onClose, onUpdated, onDeleted }: {
         </div>
 
         <div style={s.detailFields}>
+          <div style={s.detailField}>
+            <label style={s.detailLabel}>Kategori</label>
+            <select
+              style={s.input}
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+            >
+              <option value="">Uden kategori</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
           <div style={s.detailField}>
             <label style={s.detailLabel}>Antal / mængde</label>
             <input
