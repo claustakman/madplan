@@ -99,28 +99,26 @@ function CreateRecipeInline({ initialTitle, onCreated, onCancel }: CreateRecipeI
 
   return (
     <div style={styles.createRecipeWrap}>
-      <div style={styles.createRecipeHeader}>
-        <span style={{ fontWeight: 600, fontSize: 15 }}>Ny opskrift</span>
-        <button style={styles.closeBtn} onClick={onCancel}>✕</button>
-      </div>
+      <button style={styles.fsBackLink} onClick={onCancel}>← Tilbage</button>
+      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#1a1a1a' }}>Ny opskrift</h3>
       <label style={styles.createLabel}>Navn</label>
       <input
-        style={styles.searchInput}
+        style={styles.fsSearchInput}
         value={title}
         onChange={e => setTitle(e.target.value)}
         placeholder="Opskriftens navn"
       />
-      <label style={{ ...styles.createLabel, marginTop: 10 }}>Link (valgfrit)</label>
+      <label style={styles.createLabel}>Link (valgfrit)</label>
       <input
-        style={styles.searchInput}
+        style={styles.fsSearchInput}
         type="url"
         value={url}
         onChange={e => setUrl(e.target.value)}
         placeholder="https://…"
       />
-      {error && <p style={{ color: '#e53935', fontSize: 13, margin: '6px 0 0' }}>{error}</p>}
+      {error && <p style={{ color: '#e53935', fontSize: 13, margin: 0 }}>{error}</p>}
       <button
-        style={{ ...styles.freetextSaveBtn, marginTop: 12, opacity: saving || !title.trim() ? 0.5 : 1 }}
+        style={{ ...styles.freetextSaveBtn, opacity: saving || !title.trim() ? 0.5 : 1 }}
         disabled={saving || !title.trim()}
         onClick={handleCreate}
       >
@@ -143,12 +141,10 @@ interface DayEditorProps {
 function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Recipe[]>([]);
-  const [showFreetext, setShowFreetext] = useState(false);
+  const [view, setView] = useState<'search' | 'freetext' | 'create'>('search');
   const [freetext, setFreetext] = useState('');
-  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -169,115 +165,123 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
     onSave(patch);
   };
 
+  const noResults = query.length > 0 && results.length === 0;
   const dayName = WEEKDAYS[weekday - 1];
 
   return (
-    <div
-      ref={overlayRef}
-      style={styles.overlay}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-    >
-      <div style={styles.sheet}>
-        <div style={styles.sheetHandle} />
-        <div style={styles.sheetHeader}>
-          <span style={styles.sheetTitle}>{dayName} {formatDate(date)}</span>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
-        </div>
-
-        <div style={styles.specialRow}>
-          <button
-            style={{ ...styles.specialBtn, opacity: saving ? 0.5 : 1 }}
-            onClick={() => save({ recipe_id: null, note: null })}
-            disabled={saving}
-          >
-            🗑 Tom dag
-          </button>
-          <button
-            style={{ ...styles.specialBtn, background: '#fff3e0', color: '#e65100', opacity: saving ? 0.5 : 1 }}
-            onClick={() => save({ recipe_id: null, note: 'Rester' })}
-            disabled={saving}
-          >
-            🍲 Rester
-          </button>
-        </div>
-
-        <div style={styles.searchWrap}>
-          <input
-            style={styles.searchInput}
-            type="text"
-            placeholder="Søg i opskrifter…"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setShowFreetext(false); }}
-          />
-        </div>
-
-        <div style={styles.resultsList}>
-          {results.map(r => (
-            <button
-              key={r.id}
-              style={styles.resultItem}
-              onClick={() => save({ recipe_id: r.id, recipe_title: r.title, note: null })}
-              disabled={saving}
-            >
-              <span style={styles.resultTitle}>{r.title}</span>
-              {parseTags(r.tags).slice(0, 2).map(t => (
-                <span key={t} style={styles.tag}>{t}</span>
-              ))}
-            </button>
-          ))}
-
-          {query.length > 0 && results.length === 0 && (
-            <div style={styles.noMatch}>
-              <span style={styles.noMatchText}>Ingen opskrift fundet for "{query}"</span>
-            </div>
-          )}
-        </div>
-
-        {/* Actions vist når ingen resultater */}
-        {query.length > 0 && results.length === 0 && !showFreetext && !showCreateRecipe && (
-          <div style={styles.noMatchActions}>
-            <button
-              style={styles.freetextToggle}
-              onClick={() => { setShowFreetext(true); setFreetext(query); }}
-            >
-              📝 Gem som fritekst
-            </button>
-            <button
-              style={{ ...styles.freetextToggle, borderColor: '#1976D2', color: '#1976D2' }}
-              onClick={() => setShowCreateRecipe(true)}
-            >
-              ＋ Tilføj opskrift
-            </button>
-          </div>
-        )}
-
-        {showFreetext && (
-          <div style={styles.freetextWrap}>
-            <input
-              style={styles.searchInput}
-              type="text"
-              value={freetext}
-              onChange={(e) => setFreetext(e.target.value)}
-              placeholder="Beskriv måltidet…"
-            />
-            <button
-              style={{ ...styles.freetextSaveBtn, opacity: saving || !freetext.trim() ? 0.5 : 1 }}
-              disabled={saving || !freetext.trim()}
-              onClick={() => save({ recipe_id: null, note: freetext.trim() })}
-            >
-              Gem fritekst
-            </button>
-          </div>
-        )}
-
-        {showCreateRecipe && (
-          <CreateRecipeInline
-            initialTitle={query}
-            onCreated={(recipe) => save({ recipe_id: recipe.id, recipe_title: recipe.title, note: null })}
-            onCancel={() => setShowCreateRecipe(false)}
-          />
-        )}
+    <div style={styles.fullscreen}>
+      {/* Fixed header */}
+      <div style={styles.fsHeader}>
+        <button style={styles.fsBack} onClick={onClose}>✕</button>
+        <span style={styles.fsTitle}>{dayName} {formatDate(date)}</span>
+        <div style={{ width: 36 }} />
       </div>
+
+      {view === 'search' && (
+        <>
+          {/* Fixed search bar */}
+          <div style={styles.fsSearchBar}>
+            <input
+              style={styles.fsSearchInput}
+              type="text"
+              placeholder="Søg i opskrifter…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Scrollable results */}
+          <div style={styles.fsResults}>
+            {results.map(r => (
+              <button
+                key={r.id}
+                style={styles.resultItem}
+                onClick={() => save({ recipe_id: r.id, recipe_title: r.title, note: null })}
+                disabled={saving}
+              >
+                <span style={styles.resultTitle}>{r.title}</span>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {parseTags(r.tags).slice(0, 3).map(t => (
+                    <span key={t} style={styles.tag}>{t}</span>
+                  ))}
+                </div>
+              </button>
+            ))}
+
+            {noResults && (
+              <div style={styles.noMatchMsg}>
+                Ingen opskrift fundet for "{query}"
+              </div>
+            )}
+          </div>
+
+          {/* Fixed bottom bar */}
+          <div style={styles.fsBottom}>
+            {noResults ? (
+              <div style={styles.fsBottomRow}>
+                <button
+                  style={styles.fsBottomBtn}
+                  onClick={() => { setView('freetext'); setFreetext(query); }}
+                >
+                  📝 Gem som fritekst
+                </button>
+                <button
+                  style={{ ...styles.fsBottomBtn, background: '#e3f0fc', color: '#1565C0' }}
+                  onClick={() => setView('create')}
+                >
+                  ＋ Tilføj opskrift
+                </button>
+              </div>
+            ) : (
+              <div style={styles.fsBottomRow}>
+                <button
+                  style={{ ...styles.fsBottomBtn, opacity: saving ? 0.5 : 1 }}
+                  onClick={() => save({ recipe_id: null, note: null })}
+                  disabled={saving}
+                >
+                  🗑 Tom dag
+                </button>
+                <button
+                  style={{ ...styles.fsBottomBtn, background: '#fff3e0', color: '#e65100', opacity: saving ? 0.5 : 1 }}
+                  onClick={() => save({ recipe_id: null, note: 'Rester' })}
+                  disabled={saving}
+                >
+                  🍲 Rester
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === 'freetext' && (
+        <div style={styles.fsSubview}>
+          <button style={styles.fsBackLink} onClick={() => setView('search')}>← Tilbage</button>
+          <h3 style={styles.fsSubtitle}>Gem som fritekst</h3>
+          <input
+            style={styles.fsSearchInput}
+            type="text"
+            value={freetext}
+            onChange={(e) => setFreetext(e.target.value)}
+            placeholder="Beskriv måltidet…"
+          />
+          <button
+            style={{ ...styles.fsSaveBtn, opacity: saving || !freetext.trim() ? 0.5 : 1 }}
+            disabled={saving || !freetext.trim()}
+            onClick={() => save({ recipe_id: null, note: freetext.trim() })}
+          >
+            Gem
+          </button>
+        </div>
+      )}
+
+      {view === 'create' && (
+        <CreateRecipeInline
+          initialTitle={query}
+          onCreated={(recipe) => save({ recipe_id: recipe.id, recipe_title: recipe.title, note: null })}
+          onCancel={() => setView('search')}
+        />
+      )}
     </div>
   );
 }
@@ -670,98 +674,135 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
   },
-  overlay: {
+  // ── Fullscreen DayEditor ──────────────────────────────────────────────────
+  fullscreen: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.4)',
+    background: '#fff',
     zIndex: 100,
     display: 'flex',
-    alignItems: 'flex-end',
+    flexDirection: 'column',
   },
-  sheet: {
-    width: '100%',
-    maxHeight: '85vh',
-    background: '#fff',
-    borderRadius: '20px 20px 0 0',
-    padding: '12px 16px 32px',
-    overflowY: 'auto',
-    boxSizing: 'border-box',
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    background: '#ddd',
-    borderRadius: 2,
-    margin: '0 auto 12px',
-  },
-  sheetHeader: {
+  fsHeader: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    padding: '12px 16px',
+    borderBottom: '1px solid #e0e0e0',
+    background: '#fff',
+    flexShrink: 0,
   },
-  sheetTitle: {
-    fontSize: 17,
+  fsBack: {
+    background: 'none',
+    border: 'none',
+    fontSize: 20,
+    color: '#666',
+    cursor: 'pointer',
+    padding: '4px 8px 4px 0',
+    lineHeight: 1,
+  },
+  fsTitle: {
+    fontSize: 16,
     fontWeight: 700,
     color: '#1a1a1a',
   },
-  closeBtn: {
-    background: 'none',
-    border: 'none',
-    fontSize: 18,
-    color: '#999',
-    cursor: 'pointer',
-    padding: 4,
+  fsSearchBar: {
+    padding: '12px 16px 8px',
+    background: '#fff',
+    flexShrink: 0,
   },
-  specialRow: {
-    display: 'flex',
-    gap: 8,
-    marginBottom: 14,
-  },
-  specialBtn: {
-    flex: 1,
-    padding: '10px 0',
-    background: '#f5f5f5',
-    border: 'none',
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 500,
-    color: '#555',
-    cursor: 'pointer',
-  },
-  searchWrap: {
-    marginBottom: 8,
-  },
-  searchInput: {
+  fsSearchInput: {
     width: '100%',
-    padding: '11px 14px',
+    padding: '12px 14px',
     fontSize: 16,
     border: '1px solid #e0e0e0',
-    borderRadius: 10,
+    borderRadius: 12,
     outline: 'none',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
+    background: '#f9f9f9',
   },
-  resultsList: {
+  fsResults: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    padding: '4px 16px 8px',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     gap: 4,
   },
+  fsBottom: {
+    padding: '12px 16px',
+    borderTop: '1px solid #e0e0e0',
+    background: '#fff',
+    flexShrink: 0,
+    paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+  },
+  fsBottomRow: {
+    display: 'flex',
+    gap: 10,
+  },
+  fsBottomBtn: {
+    flex: 1,
+    padding: '13px 8px',
+    background: '#f5f5f5',
+    color: '#555',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'center' as const,
+  },
+  fsSubview: {
+    flex: 1,
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 10,
+  },
+  fsBackLink: {
+    background: 'none',
+    border: 'none',
+    color: '#1976D2',
+    fontSize: 14,
+    cursor: 'pointer',
+    padding: 0,
+    textAlign: 'left' as const,
+    marginBottom: 4,
+  },
+  fsSubtitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    margin: 0,
+    color: '#1a1a1a',
+  },
+  fsSaveBtn: {
+    padding: '13px 0',
+    background: '#1976D2',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginTop: 4,
+  },
+  // ── Result items ──────────────────────────────────────────────────────────
   resultItem: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    padding: '11px 12px',
+    padding: '13px 12px',
     background: '#f9f9f9',
     border: 'none',
     borderRadius: 10,
     cursor: 'pointer',
-    textAlign: 'left',
+    textAlign: 'left' as const,
     width: '100%',
-    flexWrap: 'wrap',
-    boxSizing: 'border-box',
+    flexWrap: 'wrap' as const,
+    boxSizing: 'border-box' as const,
   },
   resultTitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#1a1a1a',
     fontWeight: 500,
     flex: 1,
@@ -773,66 +814,42 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 7px',
     borderRadius: 20,
   },
-  noMatch: {
-    padding: '8px 0 0',
-  },
-  noMatchText: {
-    fontSize: 13,
-    color: '#999',
-  },
-  noMatchActions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTop: '1px solid #f0f0f0',
-  },
-  freetextToggle: {
-    background: 'none',
-    border: '1px solid #999',
-    color: '#555',
-    borderRadius: 10,
-    padding: '11px 14px',
+  noMatchMsg: {
+    padding: '20px 0 8px',
     fontSize: 14,
-    cursor: 'pointer',
-    textAlign: 'left' as const,
-    width: '100%',
+    color: '#999',
+    textAlign: 'center' as const,
   },
-  freetextWrap: {
-    marginTop: 12,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  freetextSaveBtn: {
-    padding: '12px 0',
-    background: '#1976D2',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-    width: '100%',
-  },
+  // ── CreateRecipeInline ────────────────────────────────────────────────────
   createRecipeWrap: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTop: '1px solid #f0f0f0',
+    flex: 1,
+    padding: '16px',
     display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
+    flexDirection: 'column' as const,
+    gap: 10,
   },
   createRecipeHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   createLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#666',
     fontWeight: 500,
+    marginBottom: 2,
+  },
+  freetextSaveBtn: {
+    padding: '13px 0',
+    background: '#1976D2',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    width: '100%',
+    marginTop: 4,
   },
 };
