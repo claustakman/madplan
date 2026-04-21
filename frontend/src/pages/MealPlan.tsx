@@ -682,7 +682,7 @@ const styles: Record<string, React.CSSProperties> = {
     right: 0,
     bottom: 0,
     background: '#fff',
-    zIndex: 100,
+    zIndex: 150,
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
@@ -736,11 +736,10 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
   },
   fsBottom: {
-    padding: '12px 16px',
+    padding: '12px 16px max(12px, env(safe-area-inset-bottom))',
     borderTop: '1px solid #e0e0e0',
     background: '#fff',
     flexShrink: 0,
-    paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
   },
   fsBottomRow: {
     display: 'flex',
