@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiPut } from '../lib/api';
+import CreateRecipeModal from '../components/CreateRecipeModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,70 +64,6 @@ function getWeekNumber(d: Date): number {
 }
 
 const WEEKDAYS = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'];
-
-// ─── CreateRecipeInline ───────────────────────────────────────────────────────
-
-interface CreateRecipeInlineProps {
-  initialTitle: string;
-  onCreated: (recipe: Recipe) => void;
-  onCancel: () => void;
-}
-
-function CreateRecipeInline({ initialTitle, onCreated, onCancel }: CreateRecipeInlineProps) {
-  const [title, setTitle] = useState(initialTitle);
-  const [url, setUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  async function handleCreate() {
-    if (!title.trim()) return;
-    setSaving(true);
-    setError('');
-    try {
-      const recipe = await apiPost<Recipe>('/api/recipes', {
-        title: title.trim(),
-        url: url.trim() || null,
-        servings: 4,
-        prep_minutes: null,
-        tags: [],
-      });
-      onCreated(recipe);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Fejl');
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div style={styles.createRecipeWrap}>
-      <button style={styles.fsBackLink} onClick={onCancel}>← Tilbage</button>
-      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#1a1a1a' }}>Ny opskrift</h3>
-      <label style={styles.createLabel}>Navn</label>
-      <input
-        style={styles.fsSearchInput}
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="Opskriftens navn"
-      />
-      <label style={styles.createLabel}>Link (valgfrit)</label>
-      <input
-        style={styles.fsSearchInput}
-        type="url"
-        value={url}
-        onChange={e => setUrl(e.target.value)}
-        placeholder="https://…"
-      />
-      {error && <p style={{ color: '#e53935', fontSize: 13, margin: 0 }}>{error}</p>}
-      <button
-        style={{ ...styles.freetextSaveBtn, opacity: saving || !title.trim() ? 0.5 : 1 }}
-        disabled={saving || !title.trim()}
-        onClick={handleCreate}
-      >
-        {saving ? 'Opretter…' : 'Opret og tilføj til dag'}
-      </button>
-    </div>
-  );
-}
 
 // ─── DayEditor — slide-up modal ───────────────────────────────────────────────
 
@@ -294,10 +231,10 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
       )}
 
       {view === 'create' && (
-        <CreateRecipeInline
+        <CreateRecipeModal
           initialTitle={query}
           onCreated={(recipe) => save({ recipe_id: recipe.id, recipe_title: recipe.title, note: null })}
-          onCancel={() => setView('search')}
+          onClose={() => setView('search')}
         />
       )}
     </div>
@@ -842,26 +779,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: '#999',
     textAlign: 'center' as const,
-  },
-  // ── CreateRecipeInline ────────────────────────────────────────────────────
-  createRecipeWrap: {
-    flex: 1,
-    padding: '16px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 10,
-  },
-  createRecipeHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  createLabel: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: 500,
-    marginBottom: 2,
   },
   freetextSaveBtn: {
     padding: '13px 0',

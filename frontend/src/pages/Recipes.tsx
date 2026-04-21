@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api';
+import CreateRecipeModal from '../components/CreateRecipeModal';
 
 interface Recipe {
   id: string;
@@ -511,118 +512,6 @@ function DetailModal({ recipe, categories: _categories, onClose, onSaved, onDele
   );
 }
 
-// ── Create modal ──────────────────────────────────────────────────────────────
-
-interface CreateModalProps {
-  onClose: () => void;
-  onCreated: (r: Recipe) => void;
-}
-
-function CreateModal({ onClose, onCreated }: CreateModalProps) {
-  const [title, setTitle] = useState('');
-  const [url, setUrl] = useState('');
-  const [servings, setServings] = useState('4');
-  const [prepMinutes, setPrepMinutes] = useState('');
-  const [tagInput, setTagInput] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  async function handleCreate() {
-    if (!title.trim()) return;
-    setSaving(true);
-    setError('');
-    try {
-      const tagsArr = tagInput.split(',').map(t => t.trim()).filter(Boolean);
-      const recipe = await apiPost<Recipe>('/api/recipes', {
-        title: title.trim(),
-        url: url.trim() || null,
-        servings: Number(servings) || 4,
-        prep_minutes: prepMinutes ? Number(prepMinutes) : null,
-        tags: tagsArr,
-      });
-      onCreated(recipe);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Fejl');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={e => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <h2 style={styles.modalTitle}>Ny opskrift</h2>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
-        </div>
-
-        <div style={styles.modalBody}>
-          <div style={styles.editForm}>
-            <label style={styles.label}>Navn *</label>
-            <input
-              style={styles.input}
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Opskriftens navn"
-              autoFocus
-            />
-
-            <label style={styles.label}>Link til opskrift</label>
-            <input
-              style={styles.input}
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://…"
-            />
-
-            <div style={styles.row2}>
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Portioner</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min={1}
-                  value={servings}
-                  onChange={e => setServings(e.target.value)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Tid (min)</label>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min={0}
-                  value={prepMinutes}
-                  onChange={e => setPrepMinutes(e.target.value)}
-                  placeholder="—"
-                />
-              </div>
-            </div>
-
-            <label style={styles.label}>Tags <span style={styles.hint}>(kommaseparerede)</span></label>
-            <input
-              style={styles.input}
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              placeholder="vegetar, hurtig, pasta…"
-            />
-
-            {error && <p style={styles.errorText}>{error}</p>}
-          </div>
-        </div>
-
-        <div style={styles.modalFooter}>
-          <button style={styles.btnSecondary} onClick={onClose}>Annuller</button>
-          <button style={styles.btnPrimary} onClick={handleCreate} disabled={saving || !title.trim()}>
-            {saving ? 'Opretter…' : 'Opret'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Recipes() {
@@ -760,7 +649,7 @@ export default function Recipes() {
         />
       )}
       {showCreate && (
-        <CreateModal
+        <CreateRecipeModal
           onClose={() => setShowCreate(false)}
           onCreated={handleCreated}
         />
