@@ -140,8 +140,26 @@ export async function handleMealPlanArchive(request: Request, env: Env, planId: 
   return Response.json({ archived: true });
 }
 
-export async function handleMealPlanDelete(request: Request, env: Env, planId: string): Promise<Response> {
+export async function handleMealPlan(request: Request, env: Env, planId: string): Promise<Response> {
   await requireAuth(request, env);
-  await env.DB.prepare('DELETE FROM meal_plans WHERE id = ?').bind(planId).run();
-  return new Response(null, { status: 204 });
+
+  if (request.method === 'GET') {
+    const plan = await env.DB.prepare('SELECT * FROM meal_plans WHERE id = ?').bind(planId).first();
+    if (!plan) return Response.json({ error: 'Not found' }, { status: 404 });
+    const { results: days } = await env.DB.prepare(`
+      SELECT d.*, r.title as recipe_title, r.tags
+      FROM meal_plan_days d
+      LEFT JOIN recipes r ON d.recipe_id = r.id
+      WHERE d.plan_id = ?
+      ORDER BY d.weekday
+    `).bind(planId).all();
+    return Response.json({ ...plan, days });
+  }
+
+  if (request.method === 'DELETE') {
+    await env.DB.prepare('DELETE FROM meal_plans WHERE id = ?').bind(planId).run();
+    return new Response(null, { status: 204 });
+  }
+
+  return Response.json({ error: 'Method not allowed' }, { status: 405 });
 }

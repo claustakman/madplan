@@ -255,7 +255,7 @@ Token gemmes i `localStorage` under nøglen `madplan_token`.
 - CSS-variabler:
   - `--bg-primary: #f5f5f3`
   - `--bg-card: #ffffff`
-  - `--accent: #4CAF50` (grøn — mad-tema)
+  - `--accent: #1976D2` (blå)
   - `--text-primary: #1a1a1a`
   - `--text-secondary: #666666`
   - `--border: #e0e0e0`
@@ -407,7 +407,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 | 1    | Infrastruktur: repo, wrangler, D1, R2, deploy pipeline, auth       | ✅     |
 | 2    | Indkøbsliste: kategorier, tilføj/fjern/kryds af, polling           | ✅     |
 | 2b   | Ingredienskatalog + Settings-side (admin: ingredienser, kategorier)| ✅     |
-| 3    | Opskriftskatalog: CRUD, søgning, tags, billeder                    | ⬜     |
+| 3    | Opskriftskatalog: CRUD, søgning, tags, billeder                    | ✅     |
 | 4    | Madplan: ugevisning, opskriftsvalg, arkiv, skabeloner              | ⬜     |
 | 5    | "Tilføj til indkøbsliste" fra madplan                              | ⬜     |
 | 6    | AI: opskriftsforslag + madplansforslag                             | ⬜     |
@@ -433,3 +433,34 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - Ingredienser: søg, rediger (navn, kategori, standard antal, standard butik), slet
 - Kategorier: rediger (navn, sorteringsrækkefølge), slet (nullstiller kategori på ingredienser/varer)
 - Kun tilgængeligt for alle (ikke kun admin)
+
+---
+
+## Fase 3 — Implementerede features
+
+### Opskrifter (/opskrifter)
+- CRUD: opret, vis, rediger, slet
+- Søgning (debounced) + tag-filter (collapsible dropdown)
+- 125 opskrifter importeret fra Safari-bookmarks via Node.js-script
+- Hvert kort viser: titel, ⏱ tid, 👤 portioner, 🔗 link-indikator, tags
+- Tags som blå pills (`#e3f0fc` baggrund, `#1565C0` tekst)
+- Detailview: link-knap, meta (tid/portioner), tags, ingrediensliste, fremgangsmåde
+- `description`-kolonne i DB genbruges til fremgangsmåde/instruktioner
+- Ingrediensliste i view-mode: mængde + navn, `🛒 Tilføj alle til indkøbsliste`-knap
+  - Knappen POSTer alle ingredienser til `/api/shopping` og viser "✓ Tilføjet" i 2,5 sek.
+- Edit-mode ingredienser: to faner
+  - **Tekst**: fritekst textarea, én ingrediens per linje — kan paste fra hjemmesider
+  - **Liste**: strukturerede rækker `[mgl.-felt] [navn med autocomplete] [✕]` + `+ Tilføj ingrediens`
+  - Skift mellem faner konverterer data automatisk (text↔structured)
+  - Autocomplete: debounced (300ms) GET `/api/ingredients?q=…`, viser navn + kategori
+  - Ingen match → gemmes som fritekst (opretter ikke i katalog)
+- `PUT /api/recipes/{id}/ingredients`: erstatter alle ingredienser atomisk
+- Indkøbsliste UX: blå tema, kategori-shading, fed mængde, lilla butik
+- Mængde vises til venstre for ingrediensnavn med fed skrift
+
+### Shopping UX-forbedringer (fase 2b→3)
+- Blåt farvetema (accent #1976D2) erstatter grønt
+- Kategorigruppe-header: blå shading (#e3f0fc), blå tekst
+- Butik vises med lilla farve (#7B1FA2) hvis udfyldt
+- Mængde vises til venstre for varenavn med fed skrift
+- Flimmer-fix: 600ms delay på `noMatch`-visning ved kategorivælger

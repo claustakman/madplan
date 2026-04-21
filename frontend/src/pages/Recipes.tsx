@@ -24,6 +24,16 @@ interface RecipeIngredient {
   sort_order: number;
 }
 
+interface Ingredient {
+  id: string;
+  name: string;
+  category_id: string | null;
+  category_name: string | null;
+  times_bought: number;
+  default_quantity: string | null;
+  default_store: string | null;
+}
+
 interface Category {
   id: string;
   name: string;
@@ -33,6 +43,119 @@ interface Category {
 function parseTags(tags: string | string[]): string[] {
   if (Array.isArray(tags)) return tags;
   try { return JSON.parse(tags); } catch { return []; }
+}
+
+// ── Convert between text and structured ingredients ───────────────────────────
+
+function ingredientsToText(ings: RecipeIngredient[]): string {
+  return ings.map(i => i.quantity ? `${i.quantity} ${i.name}` : i.name).join('\n');
+}
+
+function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
+  return text.split('\n').map((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+    return {
+      id: crypto.randomUUID(),
+      recipe_id: recipeId,
+      ingredient_id: null,
+      name: trimmed,
+      quantity: null,
+      category_id: null,
+      sort_order: idx,
+    };
+  }).filter(Boolean) as RecipeIngredient[];
+}
+
+// ── IngredientRow — one row in the "Liste" tab ────────────────────────────────
+
+interface IngredientRowProps {
+  ing: RecipeIngredient;
+  onChange: (updated: RecipeIngredient) => void;
+  onRemove: () => void;
+}
+
+function IngredientRow({ ing, onChange, onRemove }: IngredientRowProps) {
+  const [query, setQuery] = useState(ing.name);
+  const [suggestions, setSuggestions] = useState<Ingredient[]>([]);
+  const [showDrop, setShowDrop] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setShowDrop(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function handleNameChange(val: string) {
+    setQuery(val);
+    onChange({ ...ing, name: val, ingredient_id: null, category_id: null });
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.trim().length < 1) { setSuggestions([]); setShowDrop(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const data = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(val)}`);
+        setSuggestions(data);
+        setShowDrop(data.length > 0);
+      } catch { /* ignore */ }
+    }, 300);
+  }
+
+  function selectSuggestion(s: Ingredient) {
+    setQuery(s.name);
+    setShowDrop(false);
+    setSuggestions([]);
+    onChange({
+      ...ing,
+      name: s.name,
+      ingredient_id: s.id,
+      category_id: s.category_id,
+      quantity: ing.quantity ?? s.default_quantity,
+    });
+  }
+
+  return (
+    <div style={styles.ingEditRow}>
+      <input
+        style={styles.ingQtyInput}
+        value={ing.quantity ?? ''}
+        onChange={e => onChange({ ...ing, quantity: e.target.value || null })}
+        placeholder="mgl."
+        type="text"
+      />
+      <div ref={wrapRef} style={styles.ingNameWrap}>
+        <input
+          style={styles.ingNameInput}
+          value={query}
+          onChange={e => handleNameChange(e.target.value)}
+          onFocus={() => suggestions.length > 0 && setShowDrop(true)}
+          placeholder="Ingrediens…"
+          autoComplete="off"
+        />
+        {showDrop && (
+          <div style={styles.dropdown}>
+            {suggestions.map(s => (
+              <button
+                key={s.id}
+                style={styles.dropdownItem}
+                onMouseDown={e => { e.preventDefault(); selectSuggestion(s); }}
+              >
+                <span>{s.name}</span>
+                {s.category_name && <span style={styles.dropCat}>{s.category_name}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button style={styles.ingRemoveBtn} onClick={onRemove} title="Fjern">✕</button>
+    </div>
+  );
 }
 
 // ── Recipe list card ──────────────────────────────────────────────────────────
@@ -75,38 +198,22 @@ interface DetailModalProps {
   onDeleted: (id: string) => void;
 }
 
-// Convert RecipeIngredient[] to plaintext (one per line: "quantity name" or just "name")
-function ingredientsToText(ings: RecipeIngredient[]): string {
-  return ings.map(i => i.quantity ? `${i.quantity} ${i.name}` : i.name).join('\n');
-}
-
-// Convert plaintext back to RecipeIngredient[]
-function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
-  return text.split('\n').map((line, idx) => {
-    const trimmed = line.trim();
-    if (!trimmed) return null;
-    return {
-      id: crypto.randomUUID(),
-      recipe_id: recipeId,
-      ingredient_id: null,
-      name: trimmed,
-      quantity: null,
-      category_id: null,
-      sort_order: idx,
-    };
-  }).filter(Boolean) as RecipeIngredient[];
-}
-
-function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: DetailModalProps) {
+function DetailModal({ recipe, categories: _categories, onClose, onSaved, onDeleted }: DetailModalProps) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [cartDone, setCartDone] = useState(false);
 
   // edit fields
   const [title, setTitle] = useState(recipe.title);
   const [ingredientsText, setIngredientsText] = useState(
     ingredientsToText(recipe.ingredients ?? [])
   );
+  const [editIngredients, setEditIngredients] = useState<RecipeIngredient[]>(
+    recipe.ingredients ?? []
+  );
+  const [ingredientTab, setIngredientTab] = useState<'text' | 'list'>('text');
   const [instructions, setInstructions] = useState(recipe.description ?? '');
   const [url, setUrl] = useState(recipe.url ?? '');
   const [servings, setServings] = useState(String(recipe.servings ?? 4));
@@ -114,6 +221,23 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
   const [tagInput, setTagInput] = useState(parseTags(recipe.tags).join(', '));
 
   const tags = parseTags(recipe.tags);
+
+  function switchTab(tab: 'text' | 'list') {
+    if (tab === ingredientTab) return;
+    if (tab === 'list') {
+      // Convert text → list
+      setEditIngredients(textToIngredients(ingredientsText, recipe.id));
+    } else {
+      // Convert list → text
+      setIngredientsText(ingredientsToText(editIngredients));
+    }
+    setIngredientTab(tab);
+  }
+
+  function getIngredientsForSave(): RecipeIngredient[] {
+    if (ingredientTab === 'list') return editIngredients;
+    return textToIngredients(ingredientsText, recipe.id);
+  }
 
   async function handleSave() {
     if (!title.trim()) return;
@@ -128,7 +252,7 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
         prep_minutes: prepMinutes ? Number(prepMinutes) : null,
         tags: tagsArr,
       });
-      const newIngredients = textToIngredients(ingredientsText, recipe.id);
+      const newIngredients = getIngredientsForSave();
       await apiPut(`/api/recipes/${recipe.id}/ingredients`, newIngredients);
       onSaved({ ...updated, ingredients: newIngredients });
       setEditing(false);
@@ -140,6 +264,45 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
   async function handleDelete() {
     await apiDelete(`/api/recipes/${recipe.id}`);
     onDeleted(recipe.id);
+  }
+
+  async function addAllToShopping() {
+    const ings = recipe.ingredients ?? [];
+    if (ings.length === 0) return;
+    setAddingToCart(true);
+    try {
+      for (const ing of ings) {
+        await apiPost('/api/shopping', {
+          name: ing.name,
+          category_id: ing.category_id ?? null,
+          quantity: ing.quantity ?? null,
+        });
+      }
+      setCartDone(true);
+      setTimeout(() => setCartDone(false), 2500);
+    } finally {
+      setAddingToCart(false);
+    }
+  }
+
+  function updateIngredient(idx: number, updated: RecipeIngredient) {
+    setEditIngredients(prev => prev.map((ing, i) => i === idx ? updated : ing));
+  }
+
+  function removeIngredient(idx: number) {
+    setEditIngredients(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function addIngredient() {
+    setEditIngredients(prev => [...prev, {
+      id: crypto.randomUUID(),
+      recipe_id: recipe.id,
+      ingredient_id: null,
+      name: '',
+      quantity: null,
+      category_id: null,
+      sort_order: prev.length,
+    }]);
   }
 
   return (
@@ -204,14 +367,52 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
                 placeholder="vegetar, hurtig, pasta…"
               />
 
-              <label style={styles.label}>Ingredienser <span style={styles.hint}>(én per linje)</span></label>
-              <textarea
-                style={{ ...styles.textarea, minHeight: 120 }}
-                value={ingredientsText}
-                onChange={e => setIngredientsText(e.target.value)}
-                rows={6}
-                placeholder={"500g torskefilet\n2 fed hvidløg\n1 dl fløde\n…"}
-              />
+              {/* Ingredienser with tabs */}
+              <div>
+                <div style={styles.tabHeader}>
+                  <span style={styles.label}>Ingredienser</span>
+                  <div style={styles.tabs}>
+                    <button
+                      style={{ ...styles.tabBtn, ...(ingredientTab === 'text' ? styles.tabBtnActive : {}) }}
+                      onClick={() => switchTab('text')}
+                      type="button"
+                    >
+                      Tekst
+                    </button>
+                    <button
+                      style={{ ...styles.tabBtn, ...(ingredientTab === 'list' ? styles.tabBtnActive : {}) }}
+                      onClick={() => switchTab('list')}
+                      type="button"
+                    >
+                      Liste
+                    </button>
+                  </div>
+                </div>
+
+                {ingredientTab === 'text' ? (
+                  <textarea
+                    style={{ ...styles.textarea, minHeight: 120 }}
+                    value={ingredientsText}
+                    onChange={e => setIngredientsText(e.target.value)}
+                    rows={6}
+                    placeholder={"500g torskefilet\n2 fed hvidløg\n1 dl fløde\n…"}
+                  />
+                ) : (
+                  <div style={styles.ingListEdit}>
+                    {editIngredients.map((ing, idx) => (
+                      <IngredientRow
+                        key={ing.id}
+                        ing={ing}
+                        onChange={updated => updateIngredient(idx, updated)}
+                        onRemove={() => removeIngredient(idx)}
+                      />
+                    ))}
+                    <button style={styles.addIngBtn} onClick={addIngredient} type="button">
+                      + Tilføj ingrediens
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <label style={styles.label}>Fremgangsmåde</label>
               <textarea
@@ -251,7 +452,16 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
 
               {recipe.ingredients && recipe.ingredients.length > 0 && (
                 <div style={styles.ingSection}>
-                  <h3 style={styles.ingHeader}>Ingredienser</h3>
+                  <div style={styles.ingHeaderRow}>
+                    <h3 style={styles.ingHeader}>Ingredienser</h3>
+                    <button
+                      style={cartDone ? styles.cartBtnDone : styles.cartBtn}
+                      onClick={addAllToShopping}
+                      disabled={addingToCart}
+                    >
+                      {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj alle til indkøbsliste'}
+                    </button>
+                  </div>
                   {recipe.ingredients.map(ing => (
                     <div key={ing.id} style={styles.ingViewRow}>
                       {ing.quantity && <span style={styles.ingQty}>{ing.quantity}</span>}
@@ -451,7 +661,6 @@ export default function Recipes() {
   }
 
   async function openRecipe(recipe: Recipe) {
-    // fetch full recipe with ingredients
     const full = await apiGet<Recipe>(`/api/recipes/${recipe.id}`);
     setSelected(full);
   }
@@ -459,7 +668,6 @@ export default function Recipes() {
   function handleCreated(r: Recipe) {
     setRecipes(prev => [r, ...prev]);
     setShowCreate(false);
-    // open it for editing ingredients
     setSelected({ ...r, ingredients: [] });
   }
 
@@ -473,7 +681,6 @@ export default function Recipes() {
     setSelected(null);
   }
 
-  // collect all tags across all recipes
   const allTags = Array.from(new Set(recipes.flatMap(r => parseTags(r.tags)))).sort();
 
   return (
@@ -846,29 +1053,128 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 12,
   },
-  ingRow: {
+  // Tab header for ingredienser
+  tabHeader: {
     display: 'flex',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  tabs: {
+    display: 'flex',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  tabBtn: {
+    padding: '5px 14px',
+    fontSize: 13,
+    background: 'var(--bg-primary)',
+    color: 'var(--text-secondary)',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  tabBtnActive: {
+    background: 'var(--accent)',
+    color: '#fff',
+  },
+  // Ingredient list edit
+  ingListEdit: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    padding: 8,
+    background: 'var(--bg-primary)',
+  },
+  ingEditRow: {
+    display: 'flex',
+    gap: 6,
     alignItems: 'center',
   },
-  ingRemove: {
+  ingQtyInput: {
+    width: 72,
+    padding: '8px 8px',
+    fontSize: 14,
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    background: 'var(--bg-card)',
+    color: 'var(--text-primary)',
+    flexShrink: 0,
+    boxSizing: 'border-box',
+  },
+  ingNameWrap: {
+    flex: 1,
+    position: 'relative',
+    minWidth: 0,
+  },
+  ingNameInput: {
+    width: '100%',
+    padding: '8px 10px',
+    fontSize: 14,
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    background: 'var(--bg-card)',
+    color: 'var(--text-primary)',
+    boxSizing: 'border-box',
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    zIndex: 400,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    maxHeight: 200,
+    overflowY: 'auto',
+  },
+  dropdownItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    padding: '10px 12px',
+    fontSize: 14,
+    background: 'none',
+    border: 'none',
+    borderBottom: '1px solid var(--border)',
+    cursor: 'pointer',
+    textAlign: 'left',
+    color: 'var(--text-primary)',
+    fontFamily: 'inherit',
+  },
+  dropCat: {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+  ingRemoveBtn: {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
     color: 'var(--text-secondary)',
     fontSize: 14,
-    padding: '0 4px',
+    padding: '4px 6px',
     flexShrink: 0,
+    lineHeight: 1,
   },
   addIngBtn: {
     background: 'none',
     border: '1px dashed var(--border)',
-    borderRadius: 8,
-    padding: '10px',
+    borderRadius: 6,
+    padding: '8px',
     color: 'var(--accent)',
     fontSize: 14,
     cursor: 'pointer',
     width: '100%',
+    fontFamily: 'inherit',
+    marginTop: 2,
   },
   errorText: {
     color: 'var(--danger)',
@@ -880,12 +1186,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
-  },
-  viewDesc: {
-    fontSize: 15,
-    color: 'var(--text-secondary)',
-    margin: 0,
-    lineHeight: 1.5,
   },
   viewMeta: {
     display: 'flex',
@@ -921,6 +1221,12 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 6,
   },
+  ingHeaderRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   ingHeader: {
     fontSize: 14,
     fontWeight: 700,
@@ -928,6 +1234,30 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     margin: 0,
+  },
+  cartBtn: {
+    padding: '6px 12px',
+    fontSize: 13,
+    background: '#e3f0fc',
+    color: '#1565C0',
+    border: '1px solid #b3d1f0',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  cartBtnDone: {
+    padding: '6px 12px',
+    fontSize: 13,
+    background: '#e8f5e9',
+    color: '#2e7d32',
+    border: '1px solid #a5d6a7',
+    borderRadius: 8,
+    cursor: 'default',
+    fontFamily: 'inherit',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
   },
   ingViewRow: {
     display: 'flex',

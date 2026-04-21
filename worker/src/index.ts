@@ -9,7 +9,7 @@ import {
   handleMealPlanDay,
   handleMealPlanToShopping,
   handleMealPlanArchive,
-  handleMealPlanDelete,
+  handleMealPlan,
 } from './routes/mealplan';
 import { handleTemplates } from './routes/templates';
 import { handleAISuggestRecipes, handleAISuggestPlan } from './routes/ai';
@@ -117,7 +117,7 @@ export default {
         response = await handleMealPlanArchive(request, env, id);
       } else if (path.match(/^\/api\/mealplans\/[^/]+$/)) {
         const id = path.split('/')[3];
-        response = await handleMealPlanDelete(request, env, id);
+        response = await handleMealPlan(request, env, id);
       }
 
       // Templates
