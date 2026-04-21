@@ -43,9 +43,6 @@ function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) 
     <button style={styles.card} onClick={onOpen}>
       <div style={styles.cardBody}>
         <span style={styles.cardTitle}>{recipe.title}</span>
-        {recipe.description && (
-          <span style={styles.cardDesc}>{recipe.description}</span>
-        )}
         <div style={styles.cardMeta}>
           {recipe.prep_minutes != null && (
             <span style={styles.metaChip}>⏱ {recipe.prep_minutes} min</span>
@@ -78,6 +75,28 @@ interface DetailModalProps {
   onDeleted: (id: string) => void;
 }
 
+// Convert RecipeIngredient[] to plaintext (one per line: "quantity name" or just "name")
+function ingredientsToText(ings: RecipeIngredient[]): string {
+  return ings.map(i => i.quantity ? `${i.quantity} ${i.name}` : i.name).join('\n');
+}
+
+// Convert plaintext back to RecipeIngredient[]
+function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
+  return text.split('\n').map((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+    return {
+      id: crypto.randomUUID(),
+      recipe_id: recipeId,
+      ingredient_id: null,
+      name: trimmed,
+      quantity: null,
+      category_id: null,
+      sort_order: idx,
+    };
+  }).filter(Boolean) as RecipeIngredient[];
+}
+
 function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: DetailModalProps) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -85,12 +104,14 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
 
   // edit fields
   const [title, setTitle] = useState(recipe.title);
-  const [description, setDescription] = useState(recipe.description ?? '');
+  const [ingredientsText, setIngredientsText] = useState(
+    ingredientsToText(recipe.ingredients ?? [])
+  );
+  const [instructions, setInstructions] = useState(recipe.description ?? '');
   const [url, setUrl] = useState(recipe.url ?? '');
   const [servings, setServings] = useState(String(recipe.servings ?? 4));
   const [prepMinutes, setPrepMinutes] = useState(recipe.prep_minutes != null ? String(recipe.prep_minutes) : '');
   const [tagInput, setTagInput] = useState(parseTags(recipe.tags).join(', '));
-  const [ingredients, setIngredients] = useState<RecipeIngredient[]>(recipe.ingredients ?? []);
 
   const tags = parseTags(recipe.tags);
 
@@ -101,15 +122,15 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
       const tagsArr = tagInput.split(',').map(t => t.trim()).filter(Boolean);
       const updated = await apiPut<Recipe>(`/api/recipes/${recipe.id}`, {
         title: title.trim(),
-        description: description.trim() || null,
+        description: instructions.trim() || null,
         url: url.trim() || null,
         servings: Number(servings) || 4,
         prep_minutes: prepMinutes ? Number(prepMinutes) : null,
         tags: tagsArr,
       });
-      // also save ingredients
-      await apiPut(`/api/recipes/${recipe.id}/ingredients`, ingredients);
-      onSaved({ ...updated, ingredients });
+      const newIngredients = textToIngredients(ingredientsText, recipe.id);
+      await apiPut(`/api/recipes/${recipe.id}/ingredients`, newIngredients);
+      onSaved({ ...updated, ingredients: newIngredients });
       setEditing(false);
     } finally {
       setSaving(false);
@@ -119,20 +140,6 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
   async function handleDelete() {
     await apiDelete(`/api/recipes/${recipe.id}`);
     onDeleted(recipe.id);
-  }
-
-  // ingredient helpers
-  function addIngredient() {
-    setIngredients(prev => [...prev, {
-      id: crypto.randomUUID(), recipe_id: recipe.id, ingredient_id: null,
-      name: '', quantity: '', category_id: null, sort_order: prev.length
-    }]);
-  }
-  function updateIngredient(idx: number, field: keyof RecipeIngredient, value: string) {
-    setIngredients(prev => prev.map((ing, i) => i === idx ? { ...ing, [field]: value } : ing));
-  }
-  function removeIngredient(idx: number) {
-    setIngredients(prev => prev.filter((_, i) => i !== idx));
   }
 
   return (
@@ -156,15 +163,6 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
         <div style={styles.modalBody}>
           {editing ? (
             <div style={styles.editForm}>
-              <label style={styles.label}>Beskrivelse</label>
-              <textarea
-                style={styles.textarea}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Kort beskrivelse…"
-              />
-
               <label style={styles.label}>Link til opskrift</label>
               <input
                 style={styles.input}
@@ -206,32 +204,26 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
                 placeholder="vegetar, hurtig, pasta…"
               />
 
-              <label style={styles.label}>Ingredienser</label>
-              {ingredients.map((ing, idx) => (
-                <div key={ing.id} style={styles.ingRow}>
-                  <input
-                    style={{ ...styles.input, flex: 1 }}
-                    value={ing.quantity ?? ''}
-                    onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
-                    placeholder="Mængde"
-                  />
-                  <input
-                    style={{ ...styles.input, flex: 2 }}
-                    value={ing.name}
-                    onChange={e => updateIngredient(idx, 'name', e.target.value)}
-                    placeholder="Ingrediens"
-                  />
-                  <button style={styles.ingRemove} onClick={() => removeIngredient(idx)}>✕</button>
-                </div>
-              ))}
-              <button style={styles.addIngBtn} onClick={addIngredient}>+ Tilføj ingrediens</button>
+              <label style={styles.label}>Ingredienser <span style={styles.hint}>(én per linje)</span></label>
+              <textarea
+                style={{ ...styles.textarea, minHeight: 120 }}
+                value={ingredientsText}
+                onChange={e => setIngredientsText(e.target.value)}
+                rows={6}
+                placeholder={"500g torskefilet\n2 fed hvidløg\n1 dl fløde\n…"}
+              />
+
+              <label style={styles.label}>Fremgangsmåde</label>
+              <textarea
+                style={{ ...styles.textarea, minHeight: 160 }}
+                value={instructions}
+                onChange={e => setInstructions(e.target.value)}
+                rows={8}
+                placeholder="Beskriv fremgangsmåden trin for trin…"
+              />
             </div>
           ) : (
             <div style={styles.viewBody}>
-              {recipe.description && (
-                <p style={styles.viewDesc}>{recipe.description}</p>
-              )}
-
               <div style={styles.viewMeta}>
                 {recipe.prep_minutes != null && (
                   <div style={styles.metaItem}><span style={styles.metaLabel}>Tid</span><span>{recipe.prep_minutes} min</span></div>
@@ -266,6 +258,13 @@ function DetailModal({ recipe, categories, onClose, onSaved, onDeleted }: Detail
                       <span>{ing.name}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {recipe.description && (
+                <div style={styles.ingSection}>
+                  <h3 style={styles.ingHeader}>Fremgangsmåde</h3>
+                  <p style={styles.instructionsText}>{recipe.description}</p>
                 </div>
               )}
             </div>
@@ -311,7 +310,6 @@ interface CreateModalProps {
 
 function CreateModal({ onClose, onCreated }: CreateModalProps) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
   const [servings, setServings] = useState('4');
   const [prepMinutes, setPrepMinutes] = useState('');
@@ -327,7 +325,6 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
       const tagsArr = tagInput.split(',').map(t => t.trim()).filter(Boolean);
       const recipe = await apiPost<Recipe>('/api/recipes', {
         title: title.trim(),
-        description: description.trim() || null,
         url: url.trim() || null,
         servings: Number(servings) || 4,
         prep_minutes: prepMinutes ? Number(prepMinutes) : null,
@@ -358,15 +355,6 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
               onChange={e => setTitle(e.target.value)}
               placeholder="Opskriftens navn"
               autoFocus
-            />
-
-            <label style={styles.label}>Beskrivelse</label>
-            <textarea
-              style={styles.textarea}
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Kort beskrivelse…"
             />
 
             <label style={styles.label}>Link til opskrift</label>
@@ -946,6 +934,13 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     fontSize: 15,
     alignItems: 'baseline',
+  },
+  instructionsText: {
+    fontSize: 15,
+    lineHeight: 1.65,
+    color: 'var(--text-primary)',
+    whiteSpace: 'pre-wrap',
+    margin: 0,
   },
   ingQty: {
     color: 'var(--text-secondary)',
