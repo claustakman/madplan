@@ -212,14 +212,11 @@ function ItemRow({ item, onCheck, onLongPress }: {
       </div>
       <div style={s.itemContent}>
         <span style={{ ...s.itemName, ...(isChecked ? s.strikethrough : {}) }}>
+          {showQty && <span style={s.itemQty}>{item.quantity} </span>}
           {item.name}
         </span>
-        {(showQty || item.store) && (
-          <span style={s.itemMeta}>
-            {showQty && <span style={s.itemQty}>{item.quantity}</span>}
-            {showQty && item.store && <span style={s.itemMetaSep}> · </span>}
-            {item.store && <span style={s.itemStore}>{item.store}</span>}
-          </span>
+        {item.store && (
+          <span style={s.itemStore}>{item.store}</span>
         )}
         {isChecked && item.checked_by_name && (
           <span style={s.checkedBy}>Krydset af {item.checked_by_name}</span>
