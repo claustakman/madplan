@@ -1,7 +1,7 @@
 import { handleLogin, handleMe } from './routes/auth';
 import { handleUsers, handleUser } from './routes/users';
 import { handleShopping, handleShoppingItem, handleShoppingCheck } from './routes/shopping';
-import { handleIngredients, handleIngredientCategories } from './routes/ingredients';
+import { handleIngredients, handleIngredient, handleIngredientCategories, handleIngredientCategory } from './routes/ingredients';
 import { handleRecipes, handleRecipe, handleRecipeImage } from './routes/recipes';
 import {
   handleMealPlans,
@@ -74,11 +74,17 @@ export default {
         response = await handleShoppingItem(request, env, id);
       }
 
-      // Ingredients — /categories before /:id pattern
+      // Ingredients — specific paths before generic /:id
       else if (path === '/api/ingredients/categories') {
         response = await handleIngredientCategories(request, env);
+      } else if (path.match(/^\/api\/ingredients\/categories\/[^/]+$/)) {
+        const id = path.split('/')[4];
+        response = await handleIngredientCategory(request, env, id);
       } else if (path === '/api/ingredients') {
         response = await handleIngredients(request, env, url);
+      } else if (path.match(/^\/api\/ingredients\/[^/]+$/)) {
+        const id = path.split('/')[3];
+        response = await handleIngredient(request, env, id);
       }
 
       // Recipes

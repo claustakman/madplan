@@ -8,6 +8,7 @@ import MealPlan from './pages/MealPlan';
 import Recipes from './pages/Recipes';
 import Archive from './pages/Archive';
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -30,6 +31,7 @@ function AppRoutes() {
         <Route path="/opskrifter" element={<Recipes />} />
         <Route path="/arkiv" element={<Archive />} />
         <Route path="/profil" element={<Profile />} />
+        <Route path="/indstillinger" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
