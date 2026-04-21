@@ -12,20 +12,20 @@ export async function handleIngredients(request: Request, env: Env, url: URL): P
     const q = url.searchParams.get('q')?.trim();
     if (q && q.length > 0) {
       const { results } = await env.DB.prepare(`
-        SELECT i.id, i.name, i.category_id, ic.name AS category_name
+        SELECT i.id, i.name, i.category_id, i.times_bought, ic.name AS category_name
         FROM ingredients i
         LEFT JOIN ingredient_categories ic ON i.category_id = ic.id
         WHERE i.name LIKE ?
-        ORDER BY i.name
+        ORDER BY i.times_bought DESC, i.name ASC
         LIMIT 20
       `).bind(`%${q}%`).all();
       return Response.json(results);
     }
     const { results } = await env.DB.prepare(`
-      SELECT i.id, i.name, i.category_id, ic.name AS category_name
+      SELECT i.id, i.name, i.category_id, i.times_bought, ic.name AS category_name
       FROM ingredients i
       LEFT JOIN ingredient_categories ic ON i.category_id = ic.id
-      ORDER BY i.name
+      ORDER BY i.times_bought DESC, i.name ASC
       LIMIT 100
     `).all();
     return Response.json(results);
@@ -37,14 +37,20 @@ export async function handleIngredients(request: Request, env: Env, url: URL): P
       return Response.json({ error: 'Navn er påkrævet' }, { status: 400 });
     }
 
-    const existing = await env.DB.prepare('SELECT id FROM ingredients WHERE name = ? COLLATE NOCASE')
-      .bind(body.name.trim()).first<{ id: string }>();
+    // Return existing if already there
+    const existing = await env.DB.prepare(
+      'SELECT i.id, i.name, i.category_id, i.times_bought, ic.name AS category_name FROM ingredients i LEFT JOIN ingredient_categories ic ON i.category_id = ic.id WHERE i.name = ? COLLATE NOCASE'
+    ).bind(body.name.trim()).first();
     if (existing) return Response.json(existing);
 
     const id = crypto.randomUUID();
-    await env.DB.prepare('INSERT INTO ingredients (id, name, category_id) VALUES (?, ?, ?)')
+    await env.DB.prepare('INSERT INTO ingredients (id, name, category_id, times_bought) VALUES (?, ?, ?, 0)')
       .bind(id, body.name.trim(), body.category_id ?? null).run();
-    return Response.json({ id, name: body.name.trim(), category_id: body.category_id ?? null }, { status: 201 });
+
+    const created = await env.DB.prepare(
+      'SELECT i.id, i.name, i.category_id, i.times_bought, ic.name AS category_name FROM ingredients i LEFT JOIN ingredient_categories ic ON i.category_id = ic.id WHERE i.id = ?'
+    ).bind(id).first();
+    return Response.json(created, { status: 201 });
   }
 
   return Response.json({ error: 'Method not allowed' }, { status: 405 });
