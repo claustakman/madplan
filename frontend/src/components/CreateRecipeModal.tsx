@@ -3,7 +3,7 @@ import { apiGet, apiPost, apiPut } from '../lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface CreatedRecipe {
+export interface RecipeData {
   id: string;
   title: string;
   description: string | null;
@@ -13,15 +13,26 @@ export interface CreatedRecipe {
   tags: string;
   created_by: string;
   created_at: string;
+  ingredients?: RecipeIngredient[];
 }
+
+// Keep old name as alias so MealPlan.tsx import keeps working
+export type CreatedRecipe = RecipeData;
 
 export interface CreateRecipeModalProps {
   initialTitle?: string;
-  onCreated: (r: CreatedRecipe) => void;
+  onCreated: (r: RecipeData) => void;
   onClose: () => void;
 }
 
-interface RecipeIngredient {
+export interface RecipeFormProps {
+  recipe?: RecipeData;           // present → edit mode
+  initialTitle?: string;         // create mode only
+  onSaved: (r: RecipeData) => void;
+  onCancel: () => void;
+}
+
+export interface RecipeIngredient {
   id: string;
   recipe_id: string;
   ingredient_id: string | null;
@@ -41,16 +52,21 @@ interface Ingredient {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function ingredientsToText(ings: RecipeIngredient[]): string {
+export function ingredientsToText(ings: RecipeIngredient[]): string {
   return ings.map(i => i.quantity ? `${i.quantity} ${i.name}` : i.name).join('\n');
 }
 
-function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
+export function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
   return text.split('\n').map((line, idx) => {
     const trimmed = line.trim();
     if (!trimmed) return null;
     return { id: crypto.randomUUID(), recipe_id: recipeId, ingredient_id: null, name: trimmed, quantity: null, category_id: null, sort_order: idx };
   }).filter(Boolean) as RecipeIngredient[];
+}
+
+function parseTags(tags: string | string[]): string[] {
+  if (Array.isArray(tags)) return tags;
+  try { return JSON.parse(tags); } catch { return []; }
 }
 
 // ─── IngredientRow ────────────────────────────────────────────────────────────
@@ -88,11 +104,11 @@ function IngredientRow({ ing, onChange, onRemove }: {
     }, 300);
   }
 
-  function selectSuggestion(s: Ingredient) {
-    setQuery(s.name);
+  function selectSuggestion(sg: Ingredient) {
+    setQuery(sg.name);
     setShowDrop(false);
     setSuggestions([]);
-    onChange({ ...ing, name: s.name, ingredient_id: s.id, category_id: s.category_id, quantity: ing.quantity ?? s.default_quantity });
+    onChange({ ...ing, name: sg.name, ingredient_id: sg.id, category_id: sg.category_id, quantity: ing.quantity ?? sg.default_quantity });
   }
 
   return (
@@ -116,30 +132,28 @@ function IngredientRow({ ing, onChange, onRemove }: {
   );
 }
 
-// ─── CreateRecipeModal ────────────────────────────────────────────────────────
+// ─── RecipeForm — shared between create and edit ──────────────────────────────
 
-export default function CreateRecipeModal({ initialTitle = '', onCreated, onClose }: CreateRecipeModalProps) {
-  const [title, setTitle] = useState(initialTitle);
-  const [url, setUrl] = useState('');
-  const [servings, setServings] = useState('4');
-  const [prepMinutes, setPrepMinutes] = useState('');
-  const [tagInput, setTagInput] = useState('');
+export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: RecipeFormProps) {
+  const isEdit = Boolean(recipe);
+  const TMP_ID = recipe?.id ?? 'new';
+
+  const [title, setTitle] = useState(recipe?.title ?? initialTitle);
+  const [url, setUrl] = useState(recipe?.url ?? '');
+  const [servings, setServings] = useState(String(recipe?.servings ?? 4));
+  const [prepMinutes, setPrepMinutes] = useState(recipe?.prep_minutes != null ? String(recipe.prep_minutes) : '');
+  const [tagInput, setTagInput] = useState(parseTags(recipe?.tags ?? '[]').join(', '));
   const [ingredientTab, setIngredientTab] = useState<'text' | 'list'>('text');
-  const [ingredientsText, setIngredientsText] = useState('');
-  const [editIngredients, setEditIngredients] = useState<RecipeIngredient[]>([]);
-  const [instructions, setInstructions] = useState('');
+  const [ingredientsText, setIngredientsText] = useState(ingredientsToText(recipe?.ingredients ?? []));
+  const [editIngredients, setEditIngredients] = useState<RecipeIngredient[]>(recipe?.ingredients ?? []);
+  const [instructions, setInstructions] = useState(recipe?.description ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const TMP_ID = 'new';
-
   function switchTab(tab: 'text' | 'list') {
     if (tab === ingredientTab) return;
-    if (tab === 'list') {
-      setEditIngredients(textToIngredients(ingredientsText, TMP_ID));
-    } else {
-      setIngredientsText(ingredientsToText(editIngredients));
-    }
+    if (tab === 'list') setEditIngredients(textToIngredients(ingredientsText, TMP_ID));
+    else setIngredientsText(ingredientsToText(editIngredients));
     setIngredientTab(tab);
   }
 
@@ -148,23 +162,26 @@ export default function CreateRecipeModal({ initialTitle = '', onCreated, onClos
     return raw.map((ing, idx) => ({ ...ing, recipe_id: recipeId, sort_order: idx }));
   }
 
-  async function handleCreate() {
+  async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
     setError('');
     try {
       const tagsArr = tagInput.split(',').map(t => t.trim()).filter(Boolean);
-      const recipe = await apiPost<CreatedRecipe>('/api/recipes', {
+      const body = {
         title: title.trim(),
         description: instructions.trim() || null,
         url: url.trim() || null,
         servings: Number(servings) || 4,
         prep_minutes: prepMinutes ? Number(prepMinutes) : null,
         tags: tagsArr,
-      });
-      const ings = getIngredients(recipe.id);
-      if (ings.length > 0) await apiPut(`/api/recipes/${recipe.id}/ingredients`, ings);
-      onCreated(recipe);
+      };
+      const saved = isEdit
+        ? await apiPut<RecipeData>(`/api/recipes/${recipe!.id}`, body)
+        : await apiPost<RecipeData>('/api/recipes', body);
+      const ings = getIngredients(saved.id);
+      await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
+      onSaved({ ...saved, ingredients: ings });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fejl');
       setSaving(false);
@@ -172,85 +189,101 @@ export default function CreateRecipeModal({ initialTitle = '', onCreated, onClos
   }
 
   return (
+    <>
+      <div style={s.body}>
+        {!isEdit && (
+          <>
+            <label style={s.label}>Navn *</label>
+            <input style={s.input} value={title} onChange={e => setTitle(e.target.value)} placeholder="Opskriftens navn" />
+          </>
+        )}
+
+        <label style={s.label}>Link til opskrift</label>
+        <input style={s.input} type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" />
+
+        <div style={s.row2}>
+          <div style={{ flex: 1 }}>
+            <label style={s.label}>Portioner</label>
+            <input style={s.input} type="number" min={1} value={servings} onChange={e => setServings(e.target.value)} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={s.label}>Tid (min)</label>
+            <input style={s.input} type="number" min={0} value={prepMinutes} onChange={e => setPrepMinutes(e.target.value)} placeholder="—" />
+          </div>
+        </div>
+
+        <label style={s.label}>Tags <span style={s.hint}>(kommaseparerede)</span></label>
+        <input style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="vegetar, hurtig, pasta…" />
+
+        <div style={s.tabHeader}>
+          <label style={s.label}>Ingredienser</label>
+          <div style={s.tabs}>
+            <button type="button" style={{ ...s.tabBtn, ...(ingredientTab === 'text' ? s.tabBtnActive : {}) }} onClick={() => switchTab('text')}>Tekst</button>
+            <button type="button" style={{ ...s.tabBtn, ...(ingredientTab === 'list' ? s.tabBtnActive : {}) }} onClick={() => switchTab('list')}>Liste</button>
+          </div>
+        </div>
+
+        {ingredientTab === 'text' ? (
+          <textarea
+            style={{ ...s.input, ...s.textarea }}
+            value={ingredientsText}
+            onChange={e => setIngredientsText(e.target.value)}
+            rows={6}
+            placeholder={"500g torskefilet\n2 fed hvidløg\n1 dl fløde\n…"}
+          />
+        ) : (
+          <div style={s.ingList}>
+            {editIngredients.map((ing, idx) => (
+              <IngredientRow
+                key={ing.id}
+                ing={ing}
+                onChange={u => setEditIngredients(prev => prev.map((x, i) => i === idx ? u : x))}
+                onRemove={() => setEditIngredients(prev => prev.filter((_, i) => i !== idx))}
+              />
+            ))}
+            <button type="button" style={s.addIngBtn} onClick={() => setEditIngredients(prev => [...prev, { id: crypto.randomUUID(), recipe_id: TMP_ID, ingredient_id: null, name: '', quantity: null, category_id: null, sort_order: prev.length }])}>
+              + Tilføj ingrediens
+            </button>
+          </div>
+        )}
+
+        <label style={s.label}>Fremgangsmåde</label>
+        <textarea
+          style={{ ...s.input, ...s.textarea }}
+          value={instructions}
+          onChange={e => setInstructions(e.target.value)}
+          rows={5}
+          placeholder="Beskriv fremgangsmåden…"
+        />
+
+        {error && <p style={s.error}>{error}</p>}
+      </div>
+
+      <div style={s.footer}>
+        <button style={s.btnSecondary} onClick={onCancel}>{isEdit ? 'Annuller' : 'Annuller'}</button>
+        <button
+          style={{ ...s.btnPrimary, opacity: saving || !title.trim() ? 0.5 : 1 }}
+          onClick={handleSave}
+          disabled={saving || !title.trim()}
+        >
+          {saving ? (isEdit ? 'Gemmer…' : 'Opretter…') : (isEdit ? 'Gem' : 'Opret')}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ─── CreateRecipeModal ────────────────────────────────────────────────────────
+
+export default function CreateRecipeModal({ initialTitle = '', onCreated, onClose }: CreateRecipeModalProps) {
+  return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.header}>
           <h2 style={s.title}>Ny opskrift</h2>
           <button style={s.closeBtn} onClick={onClose}>✕</button>
         </div>
-
-        <div style={s.body}>
-          <label style={s.label}>Navn *</label>
-          <input style={s.input} value={title} onChange={e => setTitle(e.target.value)} placeholder="Opskriftens navn" />
-
-          <label style={s.label}>Link til opskrift</label>
-          <input style={s.input} type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" />
-
-          <div style={s.row2}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Portioner</label>
-              <input style={s.input} type="number" min={1} value={servings} onChange={e => setServings(e.target.value)} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Tid (min)</label>
-              <input style={s.input} type="number" min={0} value={prepMinutes} onChange={e => setPrepMinutes(e.target.value)} placeholder="—" />
-            </div>
-          </div>
-
-          <label style={s.label}>Tags <span style={s.hint}>(kommaseparerede)</span></label>
-          <input style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="vegetar, hurtig, pasta…" />
-
-          {/* Ingredienser med Tekst/Liste tabs */}
-          <div style={s.tabHeader}>
-            <label style={s.label}>Ingredienser</label>
-            <div style={s.tabs}>
-              <button type="button" style={{ ...s.tabBtn, ...(ingredientTab === 'text' ? s.tabBtnActive : {}) }} onClick={() => switchTab('text')}>Tekst</button>
-              <button type="button" style={{ ...s.tabBtn, ...(ingredientTab === 'list' ? s.tabBtnActive : {}) }} onClick={() => switchTab('list')}>Liste</button>
-            </div>
-          </div>
-
-          {ingredientTab === 'text' ? (
-            <textarea
-              style={{ ...s.input, ...s.textarea }}
-              value={ingredientsText}
-              onChange={e => setIngredientsText(e.target.value)}
-              rows={6}
-              placeholder={"500g torskefilet\n2 fed hvidløg\n1 dl fløde\n…"}
-            />
-          ) : (
-            <div style={s.ingList}>
-              {editIngredients.map((ing, idx) => (
-                <IngredientRow
-                  key={ing.id}
-                  ing={ing}
-                  onChange={u => setEditIngredients(prev => prev.map((x, i) => i === idx ? u : x))}
-                  onRemove={() => setEditIngredients(prev => prev.filter((_, i) => i !== idx))}
-                />
-              ))}
-              <button type="button" style={s.addIngBtn} onClick={() => setEditIngredients(prev => [...prev, { id: crypto.randomUUID(), recipe_id: TMP_ID, ingredient_id: null, name: '', quantity: null, category_id: null, sort_order: prev.length }])}>
-                + Tilføj ingrediens
-              </button>
-            </div>
-          )}
-
-          <label style={s.label}>Fremgangsmåde</label>
-          <textarea
-            style={{ ...s.input, ...s.textarea }}
-            value={instructions}
-            onChange={e => setInstructions(e.target.value)}
-            rows={5}
-            placeholder="Beskriv fremgangsmåden…"
-          />
-
-          {error && <p style={s.error}>{error}</p>}
-        </div>
-
-        <div style={s.footer}>
-          <button style={s.btnSecondary} onClick={onClose}>Annuller</button>
-          <button style={{ ...s.btnPrimary, opacity: saving || !title.trim() ? 0.5 : 1 }} onClick={handleCreate} disabled={saving || !title.trim()}>
-            {saving ? 'Opretter…' : 'Opret'}
-          </button>
-        </div>
+        <RecipeForm initialTitle={initialTitle} onSaved={onCreated} onCancel={onClose} />
       </div>
     </div>
   );
