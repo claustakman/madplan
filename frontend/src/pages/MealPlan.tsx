@@ -64,6 +64,72 @@ function getWeekNumber(d: Date): number {
 
 const WEEKDAYS = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'];
 
+// ─── CreateRecipeInline ───────────────────────────────────────────────────────
+
+interface CreateRecipeInlineProps {
+  initialTitle: string;
+  onCreated: (recipe: Recipe) => void;
+  onCancel: () => void;
+}
+
+function CreateRecipeInline({ initialTitle, onCreated, onCancel }: CreateRecipeInlineProps) {
+  const [title, setTitle] = useState(initialTitle);
+  const [url, setUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleCreate() {
+    if (!title.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const recipe = await apiPost<Recipe>('/api/recipes', {
+        title: title.trim(),
+        url: url.trim() || null,
+        servings: 4,
+        prep_minutes: null,
+        tags: [],
+      });
+      onCreated(recipe);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Fejl');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={styles.createRecipeWrap}>
+      <div style={styles.createRecipeHeader}>
+        <span style={{ fontWeight: 600, fontSize: 15 }}>Ny opskrift</span>
+        <button style={styles.closeBtn} onClick={onCancel}>✕</button>
+      </div>
+      <label style={styles.createLabel}>Navn</label>
+      <input
+        style={styles.searchInput}
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="Opskriftens navn"
+      />
+      <label style={{ ...styles.createLabel, marginTop: 10 }}>Link (valgfrit)</label>
+      <input
+        style={styles.searchInput}
+        type="url"
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        placeholder="https://…"
+      />
+      {error && <p style={{ color: '#e53935', fontSize: 13, margin: '6px 0 0' }}>{error}</p>}
+      <button
+        style={{ ...styles.freetextSaveBtn, marginTop: 12, opacity: saving || !title.trim() ? 0.5 : 1 }}
+        disabled={saving || !title.trim()}
+        onClick={handleCreate}
+      >
+        {saving ? 'Opretter…' : 'Opret og tilføj til dag'}
+      </button>
+    </div>
+  );
+}
+
 // ─── DayEditor — slide-up modal ───────────────────────────────────────────────
 
 interface DayEditorProps {
@@ -79,6 +145,7 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
   const [results, setResults] = useState<Recipe[]>([]);
   const [showFreetext, setShowFreetext] = useState(false);
   const [freetext, setFreetext] = useState('');
+  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -162,15 +229,27 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
           {query.length > 0 && results.length === 0 && (
             <div style={styles.noMatch}>
               <span style={styles.noMatchText}>Ingen opskrift fundet for "{query}"</span>
-              <button
-                style={styles.freetextToggle}
-                onClick={() => { setShowFreetext(true); setFreetext(query); }}
-              >
-                Gem som fritekst
-              </button>
             </div>
           )}
         </div>
+
+        {/* Actions vist når ingen resultater */}
+        {query.length > 0 && results.length === 0 && !showFreetext && !showCreateRecipe && (
+          <div style={styles.noMatchActions}>
+            <button
+              style={styles.freetextToggle}
+              onClick={() => { setShowFreetext(true); setFreetext(query); }}
+            >
+              📝 Gem som fritekst
+            </button>
+            <button
+              style={{ ...styles.freetextToggle, borderColor: '#1976D2', color: '#1976D2' }}
+              onClick={() => setShowCreateRecipe(true)}
+            >
+              ＋ Tilføj opskrift
+            </button>
+          </div>
+        )}
 
         {showFreetext && (
           <div style={styles.freetextWrap}>
@@ -189,6 +268,14 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
               Gem fritekst
             </button>
           </div>
+        )}
+
+        {showCreateRecipe && (
+          <CreateRecipeInline
+            initialTitle={query}
+            onCreated={(recipe) => save({ recipe_id: recipe.id, recipe_title: recipe.title, note: null })}
+            onCancel={() => setShowCreateRecipe(false)}
+          />
         )}
       </div>
     </div>
@@ -687,24 +774,30 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 20,
   },
   noMatch: {
-    padding: '12px 0',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    alignItems: 'flex-start',
+    padding: '8px 0 0',
   },
   noMatchText: {
     fontSize: 13,
     color: '#999',
   },
+  noMatchActions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTop: '1px solid #f0f0f0',
+  },
   freetextToggle: {
     background: 'none',
-    border: '1px solid #1976D2',
-    color: '#1976D2',
-    borderRadius: 8,
-    padding: '8px 14px',
+    border: '1px solid #999',
+    color: '#555',
+    borderRadius: 10,
+    padding: '11px 14px',
     fontSize: 14,
     cursor: 'pointer',
+    textAlign: 'left' as const,
+    width: '100%',
   },
   freetextWrap: {
     marginTop: 12,
@@ -721,5 +814,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
+    width: '100%',
+  },
+  createRecipeWrap: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTop: '1px solid #f0f0f0',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  createRecipeHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  createLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: 500,
   },
 };
