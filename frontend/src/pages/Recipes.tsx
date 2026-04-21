@@ -434,6 +434,7 @@ export default function Recipes() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function loadRecipes(q?: string, tag?: string | null) {
@@ -495,8 +496,8 @@ export default function Recipes() {
         <button style={styles.fabSmall} onClick={() => setShowCreate(true)}>＋</button>
       </div>
 
-      {/* Search */}
-      <div style={styles.searchWrap}>
+      {/* Search + filter row */}
+      <div style={styles.searchRow}>
         <input
           style={styles.searchInput}
           value={search}
@@ -504,16 +505,33 @@ export default function Recipes() {
           placeholder="Søg opskrifter…"
           type="search"
         />
+        {allTags.length > 0 && (
+          <button
+            style={{ ...styles.filterBtn, ...(activeTag ? styles.filterBtnActive : {}) }}
+            onClick={() => setFilterOpen(o => !o)}
+          >
+            {activeTag ? `🏷 ${activeTag}` : '🏷 Filtrer'}
+            <span style={styles.filterChevron}>{filterOpen ? '▲' : '▼'}</span>
+          </button>
+        )}
       </div>
 
-      {/* Tag filter pills */}
-      {allTags.length > 0 && (
+      {/* Tag filter pills — collapsible */}
+      {filterOpen && allTags.length > 0 && (
         <div style={styles.tagFilter}>
+          {activeTag && (
+            <button
+              style={styles.tagPillClear}
+              onClick={() => { setActiveTag(null); loadRecipes(search, null); }}
+            >
+              ✕ Ryd filter
+            </button>
+          )}
           {allTags.map(tag => (
             <button
               key={tag}
               style={{ ...styles.tagPill, ...(activeTag === tag ? styles.tagPillActive : {}) }}
-              onClick={() => handleTagClick(tag)}
+              onClick={() => { handleTagClick(tag); setFilterOpen(false); }}
             >
               {tag}
             </button>
@@ -589,40 +607,81 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     lineHeight: 1,
   },
-  searchWrap: {
+  searchRow: {
     padding: '0 16px 12px',
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
   },
   searchInput: {
-    width: '100%',
+    flex: 1,
     padding: '10px 14px',
     fontSize: 16,
     border: '1px solid var(--border)',
     borderRadius: 10,
     background: 'var(--bg-card)',
     color: 'var(--text-primary)',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
+    minWidth: 0,
+  },
+  filterBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 12px',
+    fontSize: 14,
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    background: 'var(--bg-card)',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
+    maxWidth: 140,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  filterBtnActive: {
+    background: '#e8f5e9',
+    color: '#2e7d32',
+    borderColor: 'var(--accent)',
+  },
+  filterChevron: {
+    fontSize: 10,
+    opacity: 0.6,
+    flexShrink: 0,
   },
   tagFilter: {
     display: 'flex',
     gap: 8,
     padding: '0 16px 12px',
-    overflowX: 'auto',
-    flexWrap: 'wrap',
+    overflowX: 'auto' as const,
+    flexWrap: 'wrap' as const,
   },
   tagPill: {
-    padding: '4px 12px',
+    padding: '6px 12px',
     borderRadius: 20,
     border: '1px solid var(--border)',
     background: 'var(--bg-card)',
     color: 'var(--text-secondary)',
     fontSize: 13,
     cursor: 'pointer',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'nowrap' as const,
   },
   tagPillActive: {
     background: 'var(--accent)',
     color: '#fff',
     borderColor: 'var(--accent)',
+  },
+  tagPillClear: {
+    padding: '6px 12px',
+    borderRadius: 20,
+    border: '1px solid var(--danger)',
+    background: 'none',
+    color: 'var(--danger)',
+    fontSize: 13,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
   },
   list: {
     display: 'flex',
