@@ -189,32 +189,46 @@ function ItemRow({ item, onCheck, onLongPress }: {
   item: ShoppingItem; onCheck: () => void; onLongPress: () => void;
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isChecked = Boolean(item.checked);
+  const showQty = item.quantity && item.quantity !== '1';
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    timerRef.current = setTimeout(onLongPress, 500);
+  };
+  const clearTimer = () => { if (timerRef.current) clearTimeout(timerRef.current); };
 
   return (
     <div
-      style={{ ...s.item, ...(item.checked ? s.itemChecked : {}) }}
+      style={{ ...s.item, ...(isChecked ? s.itemChecked : {}) }}
       onClick={onCheck}
-      onPointerDown={() => { timerRef.current = setTimeout(onLongPress, 500); }}
-      onPointerUp={() => { if (timerRef.current) clearTimeout(timerRef.current); }}
-      onPointerCancel={() => { if (timerRef.current) clearTimeout(timerRef.current); }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={clearTimer}
+      onPointerCancel={clearTimer}
     >
-      <div style={{ ...s.checkbox, ...(item.checked ? s.checkboxChecked : {}) }}>
-        {item.checked && <span style={s.checkMark}>✓</span>}
+      <div style={{ ...s.checkbox, ...(isChecked ? s.checkboxChecked : {}) }}>
+        {isChecked && <span style={s.checkMark}>✓</span>}
       </div>
       <div style={s.itemContent}>
-        <span style={{ ...s.itemName, ...(item.checked ? s.strikethrough : {}) }}>
+        <span style={{ ...s.itemName, ...(isChecked ? s.strikethrough : {}) }}>
           {item.name}
         </span>
-        {item.quantity && item.quantity !== '1' && (
-          <span style={s.itemMeta}>{item.quantity}{item.store ? ` · ${item.store}` : ''}</span>
+        {(showQty || item.store) && (
+          <span style={s.itemMeta}>
+            {[showQty ? item.quantity : null, item.store].filter(Boolean).join(' · ')}
+          </span>
         )}
-        {!item.quantity && item.store && (
-          <span style={s.itemMeta}>{item.store}</span>
-        )}
-        {item.checked && item.checked_by_name && (
+        {isChecked && item.checked_by_name && (
           <span style={s.checkedBy}>Krydset af {item.checked_by_name}</span>
         )}
       </div>
+      {/* Detalje-knap til desktop/mus */}
+      <button
+        style={s.detailTrigger}
+        onClick={e => { e.stopPropagation(); onLongPress(); }}
+        aria-label="Detaljer"
+      >
+        ⋯
+      </button>
     </div>
   );
 }
@@ -381,8 +395,8 @@ function DetailPanel({ item, onClose, onUpdated, onDeleted }: {
           {item.added_by_name && (
             <span style={s.stat}>👤 Tilføjet af {item.added_by_name}</span>
           )}
-          {item.times_bought > 0 && (
-            <span style={s.stat}>🛒 Købt {item.times_bought} {item.times_bought === 1 ? 'gang' : 'gange'}</span>
+          {Number(item.times_bought) > 0 && (
+            <span style={s.stat}>🛒 Købt {item.times_bought} {Number(item.times_bought) === 1 ? 'gang' : 'gange'}</span>
           )}
         </div>
 
@@ -469,6 +483,12 @@ const s: Record<string, React.CSSProperties> = {
   strikethrough: { textDecoration: 'line-through', color: 'var(--text-secondary)' },
   itemMeta: { fontSize: 13, color: 'var(--text-secondary)' },
   checkedBy: { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' },
+  detailTrigger: {
+    flexShrink: 0, width: 36, height: 44, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 20, color: 'var(--text-secondary)', borderRadius: 8,
+    marginRight: -8,
+  },
 
   fab: {
     position: 'fixed',
