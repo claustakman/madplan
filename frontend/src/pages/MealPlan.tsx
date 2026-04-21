@@ -144,7 +144,25 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
   const [view, setView] = useState<'search' | 'freetext' | 'create'>('search');
   const [freetext, setFreetext] = useState('');
   const [saving, setSaving] = useState(false);
+  const [kbOffset, setKbOffset] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track visual viewport to keep bottom bar above the keyboard
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const hidden = window.innerHeight - vv.height - vv.offsetTop;
+      setKbOffset(Math.max(0, hidden));
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -215,8 +233,8 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
             )}
           </div>
 
-          {/* Fixed bottom bar */}
-          <div style={styles.fsBottom}>
+          {/* Fixed bottom bar — floats above keyboard */}
+          <div style={{ ...styles.fsBottom, marginBottom: kbOffset }}>
             {noResults ? (
               <div style={styles.fsBottomRow}>
                 <button
