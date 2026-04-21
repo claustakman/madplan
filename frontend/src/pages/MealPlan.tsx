@@ -677,11 +677,16 @@ const styles: Record<string, React.CSSProperties> = {
   // ── Fullscreen DayEditor ──────────────────────────────────────────────────
   fullscreen: {
     position: 'fixed',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     background: '#fff',
     zIndex: 100,
     display: 'flex',
     flexDirection: 'column',
+    height: '100%',
+    overflow: 'hidden',
   },
   fsHeader: {
     display: 'flex',
@@ -723,6 +728,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fsResults: {
     flex: 1,
+    minHeight: 0,
     overflowY: 'auto' as const,
     padding: '4px 16px 8px',
     display: 'flex',
