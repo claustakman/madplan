@@ -85,13 +85,15 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 1) { setResults([]); return; }
     debounceRef.current = setTimeout(async () => {
       try {
-        const data = await apiGet<Recipe[]>(`/api/recipes?q=${encodeURIComponent(query)}&limit=20`);
+        const path = query.length > 0
+          ? `/api/recipes?q=${encodeURIComponent(query)}&limit=20`
+          : `/api/recipes?limit=10`;
+        const data = await apiGet<Recipe[]>(path);
         setResults(data);
       } catch { setResults([]); }
-    }, 300);
+    }, query.length > 0 ? 300 : 0);
   }, [query]);
 
   const save = (patch: Partial<MealPlanDay>) => {
@@ -139,7 +141,6 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
             placeholder="Søg i opskrifter…"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setShowFreetext(false); }}
-            autoFocus
           />
         </div>
 
