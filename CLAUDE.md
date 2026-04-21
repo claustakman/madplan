@@ -263,7 +263,7 @@ Token gemmes i `localStorage` under nøglen `madplan_token`.
 - `font-size: 16px` på alle inputs (undgår iOS auto-zoom)
 - Touch targets: `min-height: 44px` på knapper og inputs
 - Bundnavigation (fast, 4 ikoner): 🛒 Indkøb · 🍽️ Madplan · 📖 Opskrifter · ☰ Mere
-- Mere-panel (slide-up sheet): Arkiv · Indstillinger · Profil · [Brugere — kun admin] · Log ud
+- Mere-panel (slide-up sheet): Arkiv · Katalog · Profil · [Brugere — kun admin] · Log ud
 - `padding-bottom: env(safe-area-inset-bottom)` på bundnav
 
 ---

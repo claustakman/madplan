@@ -54,7 +54,7 @@ export default function Layout() {
               📅 Arkiv
             </button>
             <button style={styles.sheetItem} onClick={() => { navigate('/indstillinger'); setMenuOpen(false); }}>
-              ⚙️ Indstillinger
+              📋 Katalog
             </button>
             <button style={styles.sheetItem} onClick={() => { navigate('/profil'); setMenuOpen(false); }}>
               👤 Profil

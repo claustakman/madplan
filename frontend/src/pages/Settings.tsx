@@ -25,7 +25,7 @@ export default function Settings() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <h1 style={s.title}>Indstillinger</h1>
+        <h1 style={s.title}>Katalog</h1>
       </div>
 
       <div style={s.tabs}>
