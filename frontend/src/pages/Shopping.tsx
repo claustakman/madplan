@@ -26,6 +26,8 @@ interface Ingredient {
   category_id: string | null;
   category_name: string | null;
   times_bought: number;
+  default_quantity: string | null;
+  default_store: string | null;
 }
 
 interface Category {
@@ -270,8 +272,8 @@ function AddModal({ onClose, onAdded }: {
     const item = await apiPost<ShoppingItem>('/api/shopping', {
       name: ing.name,
       category_id: ing.category_id,
-      quantity: null,
-      store: null,
+      quantity: ing.default_quantity ?? null,
+      store: ing.default_store ?? null,
     }).catch(() => null);
     setAdding(false);
     if (item) onAdded(item);
