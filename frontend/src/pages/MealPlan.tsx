@@ -35,6 +35,13 @@ interface Recipe {
   servings: number;
 }
 
+interface FullRecipe extends Recipe {
+  description: string | null;
+  url: string | null;
+  rating: number;
+  ingredients: { id: string; name: string; quantity: string | null }[];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getMondayOfWeek(date: Date): string {
@@ -293,6 +300,7 @@ interface DayCardProps {
   date: string;
   day: MealPlanDay | undefined;
   onClick: () => void;
+  onRecipeClick: (recipeId: string) => void;
 }
 
 function UserAvatar({ name }: { name: string }) {
@@ -302,7 +310,7 @@ function UserAvatar({ name }: { name: string }) {
   );
 }
 
-function DayCard({ weekday, date, day, onClick }: DayCardProps) {
+function DayCard({ weekday, date, day, onClick, onRecipeClick }: DayCardProps) {
   const dayName = WEEKDAYS[weekday - 1];
 
   const todayStr = (() => {
@@ -330,11 +338,92 @@ function DayCard({ weekday, date, day, onClick }: DayCardProps) {
         {isEmpty && <span style={styles.emptyLabel}>Tryk for at planlægge</span>}
         {isRester && <span style={{ ...styles.pill, background: '#fff3e0', color: '#e65100' }}>🍲 Rester</span>}
         {isFreetext && <span style={{ ...styles.pill, background: '#f5f5f5', color: '#555' }}>📝 {day!.note}</span>}
-        {hasRecipe && <span style={{ ...styles.pill, background: '#e3f0fc', color: '#1565C0' }}>{day!.recipe_title ?? 'Opskrift'}</span>}
+        {hasRecipe && (
+          <button
+            style={{ ...styles.pill, ...styles.recipePill }}
+            onClick={e => { e.stopPropagation(); onRecipeClick(day!.recipe_id!); }}
+          >
+            {day!.recipe_title ?? 'Opskrift'} <span style={styles.recipePillArrow}>↗</span>
+          </button>
+        )}
       </div>
       {day?.assigned_user_name && <UserAvatar name={day.assigned_user_name} />}
       <span style={styles.editIcon}>›</span>
     </button>
+  );
+}
+
+// ─── RecipeDetailModal ────────────────────────────────────────────────────────
+
+function RecipeDetailModal({ recipeId, onClose }: { recipeId: string; onClose: () => void }) {
+  const [recipe, setRecipe] = useState<FullRecipe | null>(null);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [cartDone, setCartDone] = useState(false);
+
+  useEffect(() => {
+    apiGet<FullRecipe>(`/api/recipes/${recipeId}`).then(setRecipe).catch(() => null);
+  }, [recipeId]);
+
+  const addAllToShopping = async () => {
+    if (!recipe || recipe.ingredients.length === 0) return;
+    setAddingToCart(true);
+    for (const ing of recipe.ingredients) {
+      await apiPost('/api/shopping', { name: ing.name, quantity: ing.quantity ?? null }).catch(() => null);
+    }
+    setAddingToCart(false);
+    setCartDone(true);
+    setTimeout(() => setCartDone(false), 2500);
+  };
+
+  return (
+    <div style={styles.rdOverlay} onClick={onClose}>
+      <div style={styles.rdModal} onClick={e => e.stopPropagation()}>
+        <div style={styles.rdHeader}>
+          <h2 style={styles.rdTitle}>{recipe?.title ?? '…'}</h2>
+          <button style={styles.rdClose} onClick={onClose}>✕</button>
+        </div>
+        <div style={styles.rdBody}>
+          {!recipe ? (
+            <p style={{ color: '#999', fontSize: 14 }}>Indlæser…</p>
+          ) : (
+            <>
+              {recipe.url && (
+                <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={styles.rdLink}
+                  onClick={e => e.stopPropagation()}>
+                  🔗 Åbn opskrift
+                </a>
+              )}
+              {recipe.ingredients.length > 0 && (
+                <div style={styles.rdSection}>
+                  <div style={styles.rdIngHeader}>
+                    <span style={styles.rdSectionTitle}>Ingredienser</span>
+                    <button
+                      style={cartDone ? styles.rdCartDone : styles.rdCart}
+                      onClick={addAllToShopping}
+                      disabled={addingToCart}
+                    >
+                      {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj til indkøbsliste'}
+                    </button>
+                  </div>
+                  {recipe.ingredients.map(ing => (
+                    <div key={ing.id} style={styles.rdIng}>
+                      {ing.quantity && <span style={styles.rdQty}>{ing.quantity}</span>}
+                      <span>{ing.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {recipe.description && (
+                <div style={styles.rdSection}>
+                  <span style={styles.rdSectionTitle}>Fremgangsmåde</span>
+                  <p style={styles.rdDesc}>{recipe.description}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -353,6 +442,7 @@ interface WeekViewProps {
 
 function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping, onArchive, toastMsg }: WeekViewProps) {
   const [editingWeekday, setEditingWeekday] = useState<number | null>(null);
+  const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
 
   if (loading) {
     return <div style={styles.loadingWrap}>Indlæser…</div>;
@@ -375,6 +465,7 @@ function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping,
             date={addDays(monday, wd - 1)}
             day={dayMap.get(wd)}
             onClick={() => plan && !plan.archived && setEditingWeekday(wd)}
+            onRecipeClick={id => setViewingRecipeId(id)}
           />
         ))}
       </div>
@@ -395,6 +486,10 @@ function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping,
       )}
 
       {toastMsg && <div style={styles.toast}>{toastMsg}</div>}
+
+      {viewingRecipeId && (
+        <RecipeDetailModal recipeId={viewingRecipeId} onClose={() => setViewingRecipeId(null)} />
+      )}
 
       {editingWeekday !== null && plan && editingDay && (
         <DayEditor
@@ -709,6 +804,60 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
   },
+  recipePill: {
+    background: '#e3f0fc',
+    color: '#1565C0',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left' as const,
+  },
+  recipePillArrow: {
+    fontSize: 11,
+    opacity: 0.7,
+    marginLeft: 2,
+  },
+  // ── RecipeDetailModal ─────────────────────────────────────────────────────
+  rdOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+    zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+  },
+  rdModal: {
+    width: '100%', maxWidth: 600, background: '#fff',
+    borderRadius: '20px 20px 0 0', maxHeight: '90dvh', display: 'flex', flexDirection: 'column',
+  },
+  rdHeader: {
+    display: 'flex', alignItems: 'flex-start', gap: 8,
+    padding: '20px 20px 12px', borderBottom: '1px solid #e0e0e0', flexShrink: 0,
+  },
+  rdTitle: { flex: 1, fontSize: 20, fontWeight: 700, margin: 0 },
+  rdClose: {
+    background: 'none', border: 'none', fontSize: 18, color: '#999',
+    cursor: 'pointer', padding: 4, lineHeight: 1, flexShrink: 0,
+  },
+  rdBody: { flex: 1, overflowY: 'auto' as const, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 },
+  rdLink: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '10px 16px', background: '#1976D2', color: '#fff',
+    borderRadius: 10, fontSize: 15, fontWeight: 600, textDecoration: 'none', alignSelf: 'flex-start',
+  },
+  rdSection: { display: 'flex', flexDirection: 'column', gap: 8 },
+  rdSectionTitle: {
+    fontSize: 12, fontWeight: 700, color: '#999',
+    textTransform: 'uppercase' as const, letterSpacing: 0.5,
+  },
+  rdIngHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  rdCart: {
+    padding: '6px 12px', fontSize: 13, background: '#e3f0fc', color: '#1565C0',
+    border: '1px solid #b3d1f0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' as const,
+  },
+  rdCartDone: {
+    padding: '6px 12px', fontSize: 13, background: '#e8f5e9', color: '#2e7d32',
+    border: '1px solid #a5d6a7', borderRadius: 8, cursor: 'default', fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' as const,
+  },
+  rdIng: { display: 'flex', gap: 10, fontSize: 15, alignItems: 'baseline' },
+  rdQty: { color: '#999', fontSize: 14, minWidth: 60 },
+  rdDesc: { fontSize: 15, lineHeight: 1.65, color: '#1a1a1a', whiteSpace: 'pre-wrap' as const, margin: 0 },
   // ── User picker ───────────────────────────────────────────────────────────
   fsUserRow: {
     display: 'flex',
