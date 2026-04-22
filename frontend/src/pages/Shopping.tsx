@@ -132,11 +132,6 @@ export default function Shopping() {
       {/* Toolbar */}
       <div style={s.toolbar}>
         <span style={s.count}>{uncheckedCount} tilbage</span>
-        {checkedCount > 0 && (
-          <button style={s.clearBtn} onClick={clearChecked}>
-            Ryd afkrydsede ({checkedCount})
-          </button>
-        )}
       </div>
 
       {/* Liste */}
@@ -164,7 +159,10 @@ export default function Shopping() {
 
           {checkedGroups.length > 0 && (
             <div style={s.checkedSection}>
-              <p style={s.checkedHeader}>Afkrydset ({checkedCount})</p>
+              <div style={s.checkedHeaderRow}>
+                <p style={s.checkedHeader}>Afkrydset ({checkedCount})</p>
+                <button style={s.clearBtn} onClick={clearChecked}>Ryd alle</button>
+              </div>
               {checkedGroups.map(group => (
                 <div key={group.category_id ?? 'none'}>
                   {checkedGroups.length > 1 && (
@@ -512,10 +510,15 @@ const s: Record<string, React.CSSProperties> = {
     background: '#e3f0fc', borderBottom: '1px solid #b3d1f0',
   },
   checkedSection: { marginTop: 16 },
+  checkedHeaderRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)',
+    paddingRight: 8,
+  },
   checkedHeader: {
     fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
     color: 'var(--text-secondary)', padding: '8px 16px 6px',
-    background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)',
+    margin: 0,
   },
   checkedGroupLabel: {
     fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em',
