@@ -122,7 +122,8 @@ export default function Shopping() {
 
   const checkedCount = items.filter(i => i.checked).length;
   const uncheckedCount = items.filter(i => !i.checked).length;
-  const groups = groupByCategory(items);
+  const uncheckedGroups = groupByCategory(items.filter(i => !i.checked));
+  const checkedGroups = groupByCategory(items.filter(i => Boolean(i.checked)));
 
   if (loading) return <div style={s.center}><span style={{ fontSize: 32 }}>🛒</span></div>;
 
@@ -146,19 +147,42 @@ export default function Shopping() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Tryk ➕ for at tilføje</p>
         </div>
       ) : (
-        groups.map(group => (
-          <div key={group.category_id ?? 'none'} style={s.group}>
-            <p style={s.groupHeader}>{group.category_name}</p>
-            {group.items.map(item => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onCheck={() => toggleCheck(item)}
-                onLongPress={() => setDetailItem(item)}
-              />
-            ))}
-          </div>
-        ))
+        <>
+          {uncheckedGroups.map(group => (
+            <div key={group.category_id ?? 'none'} style={s.group}>
+              <p style={s.groupHeader}>{group.category_name}</p>
+              {group.items.map(item => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  onCheck={() => toggleCheck(item)}
+                  onLongPress={() => setDetailItem(item)}
+                />
+              ))}
+            </div>
+          ))}
+
+          {checkedGroups.length > 0 && (
+            <div style={s.checkedSection}>
+              <p style={s.checkedHeader}>Afkrydset ({checkedCount})</p>
+              {checkedGroups.map(group => (
+                <div key={group.category_id ?? 'none'}>
+                  {checkedGroups.length > 1 && (
+                    <p style={s.checkedGroupLabel}>{group.category_name}</p>
+                  )}
+                  {group.items.map(item => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onCheck={() => toggleCheck(item)}
+                      onLongPress={() => setDetailItem(item)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* FAB */}
@@ -218,10 +242,6 @@ function ItemRow({ item, onCheck, onLongPress }: {
         {item.store && (
           <span style={s.itemStore}>{item.store}</span>
         )}
-        <span style={s.itemByLine}>
-          {item.added_by_name && <span>Tilføjet af {item.added_by_name}</span>}
-          {isChecked && item.checked_by_name && <span> · Krydset af {item.checked_by_name}</span>}
-        </span>
       </div>
       {/* Detalje-knap til desktop/mus */}
       <button
@@ -491,10 +511,22 @@ const s: Record<string, React.CSSProperties> = {
     color: 'var(--accent-dark)', padding: '8px 16px 6px',
     background: '#e3f0fc', borderBottom: '1px solid #b3d1f0',
   },
+  checkedSection: { marginTop: 16 },
+  checkedHeader: {
+    fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+    color: 'var(--text-secondary)', padding: '8px 16px 6px',
+    background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)',
+  },
+  checkedGroupLabel: {
+    fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em',
+    color: 'var(--text-secondary)', padding: '6px 16px 4px',
+    background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)',
+    opacity: 0.7,
+  },
   item: {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '12px 16px', background: 'var(--bg-card)',
-    borderBottom: '1px solid var(--border)', minHeight: 56,
+    padding: '8px 16px', background: 'var(--bg-card)',
+    borderBottom: '1px solid var(--border)', minHeight: 44,
     cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none',
   },
   itemChecked: { background: '#f9f9f9' },
