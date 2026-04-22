@@ -38,7 +38,10 @@ export async function handleUsers(request: Request, env: Env, _url: URL): Promis
 
 export async function handleUser(request: Request, env: Env, id: string): Promise<Response> {
   const user = await requireAuth(request, env);
-  requireRole(user, 'admin');
+
+  // Users may edit their own profile; admin required to edit others or to delete
+  const isSelf = user.id === id;
+  if (!isSelf) requireRole(user, 'admin');
 
   if (request.method === 'PUT') {
     const { name, email, password, role } = await request.json() as { name?: string; email?: string; password?: string; role?: string };
@@ -57,6 +60,7 @@ export async function handleUser(request: Request, env: Env, id: string): Promis
   }
 
   if (request.method === 'DELETE') {
+    requireRole(user, 'admin');
     await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     return new Response(null, { status: 204 });
   }
