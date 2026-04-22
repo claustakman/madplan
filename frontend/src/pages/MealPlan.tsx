@@ -131,6 +131,8 @@ function DayEditor({ weekday, date, current, users, onSave, onClose }: DayEditor
 
   const noResults = query.length > 0 && results.length === 0;
   const dayName = WEEKDAYS[weekday - 1];
+  const assignedChanged = assignedUserId !== (current.assigned_user_id ?? null);
+  const hasContent = !!(current.recipe_id || current.note);
 
   return (
     <div style={styles.fullscreen}>
@@ -220,20 +222,32 @@ function DayEditor({ weekday, date, current, users, onSave, onClose }: DayEditor
               </div>
             ) : (
               <div style={styles.fsBottomRow}>
-                <button
-                  style={{ ...styles.fsBottomBtn, opacity: saving ? 0.5 : 1 }}
-                  onClick={() => save({ recipe_id: null, note: null })}
-                  disabled={saving}
-                >
-                  🗑 Tom dag
-                </button>
-                <button
-                  style={{ ...styles.fsBottomBtn, background: '#fff3e0', color: '#e65100', opacity: saving ? 0.5 : 1 }}
-                  onClick={() => save({ recipe_id: null, note: 'Rester' })}
-                  disabled={saving}
-                >
-                  🍲 Rester
-                </button>
+                {assignedChanged && hasContent ? (
+                  <button
+                    style={{ ...styles.fsBottomBtn, background: '#1976D2', color: '#fff', opacity: saving ? 0.5 : 1 }}
+                    onClick={() => save({ recipe_id: current.recipe_id, recipe_title: current.recipe_title ?? undefined, note: current.note })}
+                    disabled={saving}
+                  >
+                    {saving ? 'Gemmer…' : 'Gem'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      style={{ ...styles.fsBottomBtn, opacity: saving ? 0.5 : 1 }}
+                      onClick={() => save({ recipe_id: null, note: null })}
+                      disabled={saving}
+                    >
+                      🗑 Tom dag
+                    </button>
+                    <button
+                      style={{ ...styles.fsBottomBtn, background: '#fff3e0', color: '#e65100', opacity: saving ? 0.5 : 1 }}
+                      onClick={() => save({ recipe_id: null, note: 'Rester' })}
+                      disabled={saving}
+                    >
+                      🍲 Rester
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
