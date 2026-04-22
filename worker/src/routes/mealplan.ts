@@ -68,9 +68,10 @@ export async function handleMealPlanCurrent(request: Request, env: Env): Promise
   }
 
   const { results: days } = await env.DB.prepare(`
-    SELECT d.*, r.title as recipe_title, r.image_url, r.tags
+    SELECT d.*, r.title as recipe_title, r.image_url, r.tags, u.name as assigned_user_name
     FROM meal_plan_days d
     LEFT JOIN recipes r ON d.recipe_id = r.id
+    LEFT JOIN users u ON d.assigned_user_id = u.id
     WHERE d.plan_id = ?
     ORDER BY d.weekday
   `).bind(plan.id).all();
@@ -83,18 +84,18 @@ export async function handleMealPlanDay(request: Request, env: Env, planId: stri
 
   if (request.method !== 'PUT') return Response.json({ error: 'Method not allowed' }, { status: 405 });
 
-  const { recipe_id, note } = await request.json() as { recipe_id?: string | null; note?: string | null };
+  const { recipe_id, note, assigned_user_id } = await request.json() as { recipe_id?: string | null; note?: string | null; assigned_user_id?: string | null };
 
   const existing = await env.DB.prepare(
     'SELECT id FROM meal_plan_days WHERE plan_id = ? AND weekday = ?'
   ).bind(planId, parseInt(weekday)).first<{ id: string }>();
 
   if (existing) {
-    await env.DB.prepare('UPDATE meal_plan_days SET recipe_id = ?, note = ? WHERE id = ?')
-      .bind(recipe_id ?? null, note ?? null, existing.id).run();
+    await env.DB.prepare('UPDATE meal_plan_days SET recipe_id = ?, note = ?, assigned_user_id = ? WHERE id = ?')
+      .bind(recipe_id ?? null, note ?? null, assigned_user_id ?? null, existing.id).run();
   } else {
-    await env.DB.prepare('INSERT INTO meal_plan_days (id, plan_id, weekday, recipe_id, note) VALUES (?, ?, ?, ?, ?)')
-      .bind(crypto.randomUUID(), planId, parseInt(weekday), recipe_id ?? null, note ?? null).run();
+    await env.DB.prepare('INSERT INTO meal_plan_days (id, plan_id, weekday, recipe_id, note, assigned_user_id) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(crypto.randomUUID(), planId, parseInt(weekday), recipe_id ?? null, note ?? null, assigned_user_id ?? null).run();
   }
 
   const updated = await env.DB.prepare('SELECT * FROM meal_plan_days WHERE plan_id = ? AND weekday = ?')
@@ -147,9 +148,10 @@ export async function handleMealPlan(request: Request, env: Env, planId: string)
     const plan = await env.DB.prepare('SELECT * FROM meal_plans WHERE id = ?').bind(planId).first();
     if (!plan) return Response.json({ error: 'Not found' }, { status: 404 });
     const { results: days } = await env.DB.prepare(`
-      SELECT d.*, r.title as recipe_title, r.tags
+      SELECT d.*, r.title as recipe_title, r.tags, u.name as assigned_user_name
       FROM meal_plan_days d
       LEFT JOIN recipes r ON d.recipe_id = r.id
+      LEFT JOIN users u ON d.assigned_user_id = u.id
       WHERE d.plan_id = ?
       ORDER BY d.weekday
     `).bind(planId).all();

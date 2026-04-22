@@ -10,6 +10,13 @@ interface MealPlanDay {
   recipe_id: string | null;
   recipe_title?: string | null;
   note: string | null;
+  assigned_user_id: string | null;
+  assigned_user_name?: string | null;
+}
+
+interface User {
+  id: string;
+  name: string;
 }
 
 interface WeekPlan {
@@ -71,15 +78,17 @@ interface DayEditorProps {
   weekday: number;
   date: string;
   current: MealPlanDay;
+  users: User[];
   onSave: (patch: Partial<MealPlanDay>) => void;
   onClose: () => void;
 }
 
-function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
+function DayEditor({ weekday, date, current, users, onSave, onClose }: DayEditorProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Recipe[]>([]);
   const [view, setView] = useState<'search' | 'freetext' | 'create'>('search');
   const [freetext, setFreetext] = useState('');
+  const [assignedUserId, setAssignedUserId] = useState<string | null>(current.assigned_user_id ?? null);
   const [saving, setSaving] = useState(false);
   const [kbOffset, setKbOffset] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,7 +126,7 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
   const save = (patch: Partial<MealPlanDay>) => {
     if (saving) return;
     setSaving(true);
-    onSave(patch);
+    onSave({ ...patch, assigned_user_id: assignedUserId });
   };
 
   const noResults = query.length > 0 && results.length === 0;
@@ -131,6 +140,28 @@ function DayEditor({ weekday, date, onSave, onClose }: DayEditorProps) {
         <span style={styles.fsTitle}>{dayName} {formatDate(date)}</span>
         <div style={{ width: 36 }} />
       </div>
+
+      {/* Ansvarlig bruger */}
+      {users.length > 0 && (
+        <div style={styles.fsUserRow}>
+          <span style={styles.fsUserLabel}>Ansvarlig:</span>
+          <button
+            style={{ ...styles.fsUserBtn, ...(assignedUserId === null ? styles.fsUserBtnActive : {}) }}
+            onClick={() => setAssignedUserId(null)}
+          >
+            Ingen
+          </button>
+          {users.map(u => (
+            <button
+              key={u.id}
+              style={{ ...styles.fsUserBtn, ...(assignedUserId === u.id ? styles.fsUserBtnActive : {}) }}
+              onClick={() => setAssignedUserId(u.id)}
+            >
+              {u.name.split(' ')[0]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {view === 'search' && (
         <>
@@ -250,6 +281,13 @@ interface DayCardProps {
   onClick: () => void;
 }
 
+function UserAvatar({ name }: { name: string }) {
+  const initials = name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('');
+  return (
+    <div style={styles.avatar} title={name}>{initials}</div>
+  );
+}
+
 function DayCard({ weekday, date, day, onClick }: DayCardProps) {
   const dayName = WEEKDAYS[weekday - 1];
 
@@ -280,6 +318,7 @@ function DayCard({ weekday, date, day, onClick }: DayCardProps) {
         {isFreetext && <span style={{ ...styles.pill, background: '#f5f5f5', color: '#555' }}>📝 {day!.note}</span>}
         {hasRecipe && <span style={{ ...styles.pill, background: '#e3f0fc', color: '#1565C0' }}>{day!.recipe_title ?? 'Opskrift'}</span>}
       </div>
+      {day?.assigned_user_name && <UserAvatar name={day.assigned_user_name} />}
       <span style={styles.editIcon}>›</span>
     </button>
   );
@@ -291,13 +330,14 @@ interface WeekViewProps {
   plan: WeekPlan | null;
   monday: string;
   loading: boolean;
+  users: User[];
   onDayUpdated: (weekday: number, patch: Partial<MealPlanDay>) => void;
   onAddToShopping: () => void;
   onArchive: () => void;
   toastMsg: string | null;
 }
 
-function WeekView({ plan, monday, loading, onDayUpdated, onAddToShopping, onArchive, toastMsg }: WeekViewProps) {
+function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping, onArchive, toastMsg }: WeekViewProps) {
   const [editingWeekday, setEditingWeekday] = useState<number | null>(null);
 
   if (loading) {
@@ -308,7 +348,7 @@ function WeekView({ plan, monday, loading, onDayUpdated, onAddToShopping, onArch
   plan?.days.forEach(d => dayMap.set(d.weekday, d));
 
   const editingDay = editingWeekday !== null
-    ? (dayMap.get(editingWeekday) ?? { weekday: editingWeekday, recipe_id: null, note: null })
+    ? (dayMap.get(editingWeekday) ?? { weekday: editingWeekday, recipe_id: null, note: null, assigned_user_id: null })
     : null;
 
   return (
@@ -347,6 +387,7 @@ function WeekView({ plan, monday, loading, onDayUpdated, onAddToShopping, onArch
           weekday={editingWeekday}
           date={addDays(monday, editingWeekday - 1)}
           current={editingDay}
+          users={users}
           onSave={(patch) => {
             onDayUpdated(editingWeekday, patch);
             setEditingWeekday(null);
@@ -364,8 +405,13 @@ export default function MealPlan() {
   const [activeTab, setActiveTab] = useState<0 | 1>(0);
   const [plans, setPlans] = useState<(WeekPlan | null)[]>([null, null]);
   const [loading, setLoading] = useState<boolean[]>([true, true]);
+  const [users, setUsers] = useState<User[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    apiGet<User[]>('/api/users').then(setUsers).catch(() => null);
+  }, []);
 
   const mondays: [string, string] = [
     getMondayOfWeek(new Date()),
@@ -416,9 +462,14 @@ export default function MealPlan() {
       const p = next[tabIdx];
       if (!p) return next;
       const existingIdx = p.days.findIndex(d => d.weekday === weekday);
-      const updated: MealPlanDay = existingIdx >= 0
-        ? { ...p.days[existingIdx], ...patch }
-        : { weekday, recipe_id: null, note: null, ...patch };
+      const base: MealPlanDay = existingIdx >= 0
+        ? p.days[existingIdx]
+        : { weekday, recipe_id: null, note: null, assigned_user_id: null };
+      const updated: MealPlanDay = {
+        ...base,
+        ...patch,
+        assigned_user_id: patch.assigned_user_id !== undefined ? (patch.assigned_user_id ?? null) : (base.assigned_user_id ?? null),
+      };
       const newDays = existingIdx >= 0
         ? p.days.map((d, i) => i === existingIdx ? updated : d)
         : [...p.days, updated];
@@ -429,7 +480,7 @@ export default function MealPlan() {
     try {
       const result = await apiPut<MealPlanDay>(
         `/api/mealplans/${plan.id}/days/${weekday}`,
-        { recipe_id: patch.recipe_id ?? null, note: patch.note ?? null }
+        { recipe_id: patch.recipe_id ?? null, note: patch.note ?? null, assigned_user_id: patch.assigned_user_id ?? null }
       );
       // Re-fetch to get recipe_title from DB join
       const full = await apiGet<WeekPlan>(`/api/mealplans/${plan.id}`);
@@ -485,6 +536,7 @@ export default function MealPlan() {
         plan={plans[activeTab]}
         monday={mondays[activeTab]}
         loading={loading[activeTab]}
+        users={users}
         onDayUpdated={(wd, patch) => handleDayUpdated(activeTab, wd, patch)}
         onAddToShopping={() => handleAddToShopping(activeTab)}
         onArchive={() => handleArchive(activeTab)}
@@ -591,6 +643,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ccc',
     marginLeft: 4,
   },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    background: '#1976D2',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    letterSpacing: 0,
+  },
   weekActions: {
     marginTop: 16,
     display: 'flex',
@@ -628,6 +694,38 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 200,
     whiteSpace: 'nowrap',
     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+  },
+  // ── User picker ───────────────────────────────────────────────────────────
+  fsUserRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 16px',
+    background: '#f9f9f9',
+    borderBottom: '1px solid #e0e0e0',
+    flexShrink: 0,
+    flexWrap: 'wrap' as const,
+  },
+  fsUserLabel: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: 600,
+    marginRight: 2,
+  },
+  fsUserBtn: {
+    padding: '5px 14px',
+    borderRadius: 20,
+    border: '1px solid #e0e0e0',
+    background: '#fff',
+    fontSize: 14,
+    cursor: 'pointer',
+    color: '#555',
+    fontWeight: 500,
+  },
+  fsUserBtnActive: {
+    background: '#1976D2',
+    color: '#fff',
+    borderColor: '#1976D2',
   },
   // ── Fullscreen DayEditor ──────────────────────────────────────────────────
   fullscreen: {
