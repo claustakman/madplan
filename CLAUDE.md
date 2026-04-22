@@ -75,7 +75,8 @@ madplan/
 │           ├── MealPlan.tsx
 │           ├── Archive.tsx
 │           ├── Profile.tsx
-│           └── Settings.tsx
+│           ├── Settings.tsx
+│           └── Users.tsx
 └── .github/
     └── workflows/
         ├── deploy.yml

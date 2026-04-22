@@ -9,6 +9,7 @@ import Recipes from './pages/Recipes';
 import Archive from './pages/Archive';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Users from './pages/Users';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route path="/arkiv" element={<Archive />} />
         <Route path="/profil" element={<Profile />} />
         <Route path="/indstillinger" element={<Settings />} />
+        <Route path="/brugere" element={<Users />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
