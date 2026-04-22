@@ -51,6 +51,12 @@ interface Ingredient {
   default_quantity: string | null;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  sort_order: number;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function ingredientsToText(ings: RecipeIngredient[]): string {
@@ -133,6 +139,89 @@ function IngredientRow({ ing, onChange, onRemove }: {
   );
 }
 
+// ─── CatalogModal — ask user to save new ingredients to catalog ───────────────
+
+interface CatalogEntry {
+  name: string;
+  quantity: string | null;
+  category_id: string | null;
+}
+
+function CatalogModal({ entries, onDone }: {
+  entries: CatalogEntry[];
+  onDone: () => void;
+}) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryMap, setCategoryMap] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(entries.map(e => [e.name, e.category_id]))
+  );
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    apiGet<Category[]>('/api/ingredients/categories').then(setCategories).catch(() => null);
+  }, []);
+
+  const saveAll = async () => {
+    setSaving(true);
+    for (const entry of entries) {
+      await apiPost('/api/ingredients', {
+        name: entry.name,
+        category_id: categoryMap[entry.name] || null,
+        default_quantity: entry.quantity || null,
+      }).catch(() => null);
+    }
+    setSaving(false);
+    setDone(true);
+    setTimeout(onDone, 800);
+  };
+
+  return (
+    <div style={s.overlay} onClick={e => e.stopPropagation()}>
+      <div style={s.modal} onClick={e => e.stopPropagation()}>
+        <div style={s.header}>
+          <h2 style={s.title}>Gem til katalog?</h2>
+        </div>
+        <div style={s.body}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 4px' }}>
+            {entries.length === 1
+              ? 'Denne ingrediens er ikke i kataloget endnu.'
+              : `${entries.length} ingredienser er ikke i kataloget endnu.`}
+            {' '}Vælg kategori og gem dem.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+            {entries.map(entry => (
+              <div key={entry.name} style={s.catalogRow}>
+                <span style={s.catalogName}>{entry.name}</span>
+                <select
+                  style={s.catalogSelect}
+                  value={categoryMap[entry.name] ?? ''}
+                  onChange={e => setCategoryMap(prev => ({ ...prev, [entry.name]: e.target.value || null }))}
+                >
+                  <option value="">Uden kategori</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={s.footer}>
+          <button style={s.btnSecondary} onClick={onDone} disabled={saving}>Spring over</button>
+          <button
+            style={{ ...s.btnPrimary, opacity: saving || done ? 0.7 : 1 }}
+            onClick={saveAll}
+            disabled={saving || done}
+          >
+            {done ? '✓ Gemt' : saving ? 'Gemmer…' : `Gem ${entries.length === 1 ? 'ingrediens' : `${entries.length} ingredienser`}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── RecipeForm — shared between create and edit ──────────────────────────────
 
 export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: RecipeFormProps) {
@@ -151,6 +240,9 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
   const [instructions, setInstructions] = useState(recipe?.description ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[] | null>(null);
+  const savedRecipeRef = useRef<RecipeData | null>(null);
+  const savedIngsRef = useRef<RecipeIngredient[]>([]);
 
   function switchTab(tab: 'text' | 'list') {
     if (tab === ingredientTab) return;
@@ -184,7 +276,17 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
         : await apiPost<RecipeData>('/api/recipes', body);
       const ings = getIngredients(saved.id);
       await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
-      onSaved({ ...saved, ingredients: ings });
+
+      // Find ingredients not already in the catalog (no ingredient_id)
+      const newIngs = ings.filter(i => !i.ingredient_id && i.name.trim());
+      if (newIngs.length > 0) {
+        savedRecipeRef.current = saved;
+        savedIngsRef.current = ings;
+        setCatalogEntries(newIngs.map(i => ({ name: i.name, quantity: i.quantity, category_id: i.category_id })));
+        setSaving(false);
+      } else {
+        onSaved({ ...saved, ingredients: ings });
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fejl');
       setSaving(false);
@@ -193,6 +295,15 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
 
   return (
     <>
+      {catalogEntries && (
+        <CatalogModal
+          entries={catalogEntries}
+          onDone={() => {
+            setCatalogEntries(null);
+            onSaved({ ...savedRecipeRef.current!, ingredients: savedIngsRef.current });
+          }}
+        />
+      )}
       <div style={s.body}>
         {!isEdit && (
           <>
@@ -381,6 +492,9 @@ const s: Record<string, React.CSSProperties> = {
   stars: { display: 'flex', gap: 2 },
   starBtn: { background: 'none', border: 'none', padding: '2px', cursor: 'pointer', lineHeight: 1 },
   error: { color: '#e53935', fontSize: 13, margin: '2px 0 0' },
+  catalogRow: { display: 'flex', alignItems: 'center', gap: 10 },
+  catalogName: { flex: 1, fontSize: 15, color: 'var(--text-primary)', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  catalogSelect: { flexShrink: 0, padding: '8px 10px', fontSize: 14, border: '1px solid var(--border, #e0e0e0)', borderRadius: 8, background: 'var(--bg-primary)', color: 'var(--text-primary)', maxWidth: 180 },
   btnPrimary: { flex: 1, padding: '13px 0', background: 'var(--accent, #1976D2)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
   btnSecondary: { flex: 1, padding: '13px 0', background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
 };
