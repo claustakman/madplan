@@ -11,6 +11,7 @@ export interface RecipeData {
   servings: number;
   prep_minutes: number | null;
   tags: string;
+  rating: number;
   created_by: string;
   created_at: string;
   ingredients?: RecipeIngredient[];
@@ -143,6 +144,7 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
   const [servings, setServings] = useState(String(recipe?.servings ?? 4));
   const [prepMinutes, setPrepMinutes] = useState(recipe?.prep_minutes != null ? String(recipe.prep_minutes) : '');
   const [tagInput, setTagInput] = useState(parseTags(recipe?.tags ?? '[]').join(', '));
+  const [rating, setRating] = useState(recipe?.rating ?? 0);
   const [ingredientTab, setIngredientTab] = useState<'text' | 'list'>('text');
   const [ingredientsText, setIngredientsText] = useState(ingredientsToText(recipe?.ingredients ?? []));
   const [editIngredients, setEditIngredients] = useState<RecipeIngredient[]>(recipe?.ingredients ?? []);
@@ -175,6 +177,7 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
         servings: Number(servings) || 4,
         prep_minutes: prepMinutes ? Number(prepMinutes) : null,
         tags: tagsArr,
+        rating,
       };
       const saved = isEdit
         ? await apiPut<RecipeData>(`/api/recipes/${recipe!.id}`, body)
@@ -203,6 +206,17 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
 
         <label style={s.label}>Tags <span style={s.hint}>(kommaseparerede)</span></label>
         <input style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="vegetar, hurtig, pasta…" />
+
+        <div style={s.starRow}>
+          <label style={s.label}>Bedømmelse</label>
+          <div style={s.stars}>
+            {[1,2,3,4,5].map(n => (
+              <button key={n} type="button" style={s.starBtn} onClick={() => setRating(rating === n ? 0 : n)}>
+                <span style={{ color: n <= rating ? '#f59e0b' : '#d1d5db', fontSize: 24 }}>★</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div style={s.tabHeader}>
           <label style={s.label}>Ingredienser</label>
@@ -363,6 +377,9 @@ const s: Record<string, React.CSSProperties> = {
   dropCat: { fontSize: 12, color: 'var(--text-secondary, #999)', marginLeft: 8, flexShrink: 0 },
   ingRemove: { background: 'none', border: 'none', color: 'var(--text-secondary, #999)', fontSize: 16, cursor: 'pointer', padding: '4px 6px', flexShrink: 0 },
   addIngBtn: { background: 'none', border: '1px dashed var(--border, #e0e0e0)', borderRadius: 6, padding: '8px 12px', fontSize: 13, color: 'var(--accent, #1976D2)', cursor: 'pointer', textAlign: 'left' as const, fontFamily: 'inherit' },
+  starRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  stars: { display: 'flex', gap: 2 },
+  starBtn: { background: 'none', border: 'none', padding: '2px', cursor: 'pointer', lineHeight: 1 },
   error: { color: '#e53935', fontSize: 13, margin: '2px 0 0' },
   btnPrimary: { flex: 1, padding: '13px 0', background: 'var(--accent, #1976D2)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
   btnSecondary: { flex: 1, padding: '13px 0', background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },

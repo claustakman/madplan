@@ -6,6 +6,17 @@ interface Recipe extends RecipeData {
   ingredients?: RecipeIngredient[];
 }
 
+function StarDisplay({ rating, size = 14 }: { rating: number; size?: number }) {
+  if (!rating) return null;
+  return (
+    <span style={{ fontSize: size, letterSpacing: 1 }}>
+      {[1,2,3,4,5].map(n => (
+        <span key={n} style={{ color: n <= rating ? '#f59e0b' : '#d1d5db' }}>★</span>
+      ))}
+    </span>
+  );
+}
+
 function parseTags(tags: string | string[]): string[] {
   if (Array.isArray(tags)) return tags;
   try { return JSON.parse(tags); } catch { return []; }
@@ -30,11 +41,10 @@ function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) 
             <span style={styles.metaChip}>🔗 Link</span>
           )}
         </div>
-        {tags.length > 0 && (
-          <div style={styles.tagRow}>
-            {tags.map(t => <span key={t} style={styles.tag}>{t}</span>)}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {recipe.rating > 0 && <StarDisplay rating={recipe.rating} />}
+          {tags.length > 0 && tags.map(t => <span key={t} style={styles.tag}>{t}</span>)}
+        </div>
       </div>
       <span style={styles.cardArrow}>›</span>
     </button>
@@ -104,6 +114,8 @@ function DetailModal({ recipe, onClose, onSaved, onDeleted }: DetailModalProps) 
           <>
             <div style={styles.modalBody}>
               <div style={styles.viewBody}>
+                {recipe.rating > 0 && <StarDisplay rating={recipe.rating} size={22} />}
+
                 {recipe.url && (
                   <a
                     href={recipe.url}
@@ -180,15 +192,17 @@ export default function Recipes() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [minRating, setMinRating] = useState(0);
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function loadRecipes(q?: string, tag?: string | null) {
+  async function loadRecipes(q?: string, tag?: string | null, rating?: number) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (tag) params.set('tags', tag);
+    if (rating) params.set('min_rating', String(rating));
     const path = '/api/recipes' + (params.size ? '?' + params.toString() : '');
     const data = await apiGet<Recipe[]>(path);
     setRecipes(data);
@@ -201,13 +215,19 @@ export default function Recipes() {
   function handleSearchChange(val: string) {
     setSearch(val);
     if (searchRef.current) clearTimeout(searchRef.current);
-    searchRef.current = setTimeout(() => loadRecipes(val, activeTag), 300);
+    searchRef.current = setTimeout(() => loadRecipes(val, activeTag, minRating), 300);
   }
 
   function handleTagClick(tag: string) {
     const next = activeTag === tag ? null : tag;
     setActiveTag(next);
-    loadRecipes(search, next);
+    loadRecipes(search, next, minRating);
+  }
+
+  function handleRatingFilter(n: number) {
+    const next = minRating === n ? 0 : n;
+    setMinRating(next);
+    loadRecipes(search, activeTag, next);
   }
 
   async function openRecipe(recipe: Recipe) {
@@ -252,35 +272,59 @@ export default function Recipes() {
         />
         {allTags.length > 0 && (
           <button
-            style={{ ...styles.filterBtn, ...(activeTag ? styles.filterBtnActive : {}) }}
+            style={{ ...styles.filterBtn, ...((activeTag || minRating > 0) ? styles.filterBtnActive : {}) }}
             onClick={() => setFilterOpen(o => !o)}
           >
-            {activeTag ? `🏷 ${activeTag}` : '🏷 Filtrer'}
+            {activeTag ? `🏷 ${activeTag}` : minRating > 0 ? `${'★'.repeat(minRating)}+` : '🏷 Filtrer'}
             <span style={styles.filterChevron}>{filterOpen ? '▲' : '▼'}</span>
           </button>
         )}
       </div>
 
-      {/* Tag filter pills — collapsible */}
-      {filterOpen && allTags.length > 0 && (
-        <div style={styles.tagFilter}>
-          {activeTag && (
-            <button
-              style={styles.tagPillClear}
-              onClick={() => { setActiveTag(null); loadRecipes(search, null); }}
-            >
-              ✕ Ryd filter
-            </button>
+      {/* Filter panel — collapsible */}
+      {filterOpen && (
+        <div style={styles.filterPanel}>
+          {/* Star filter */}
+          <div style={styles.filterSection}>
+            <span style={styles.filterLabel}>Minimum bedømmelse</span>
+            <div style={styles.starFilterRow}>
+              {[1,2,3,4,5].map(n => (
+                <button
+                  key={n}
+                  style={{ ...styles.starFilterBtn, ...(minRating === n ? styles.starFilterBtnActive : {}) }}
+                  onClick={() => handleRatingFilter(n)}
+                >
+                  {'★'.repeat(n)}
+                </button>
+              ))}
+              {minRating > 0 && (
+                <button style={styles.tagPillClear} onClick={() => handleRatingFilter(0)}>✕</button>
+              )}
+            </div>
+          </div>
+
+          {/* Tag filter */}
+          {allTags.length > 0 && (
+            <div style={styles.filterSection}>
+              <span style={styles.filterLabel}>Tags</span>
+              <div style={styles.tagFilter}>
+                {activeTag && (
+                  <button style={styles.tagPillClear} onClick={() => { setActiveTag(null); loadRecipes(search, null, minRating); }}>
+                    ✕ Ryd
+                  </button>
+                )}
+                {allTags.map(tag => (
+                  <button
+                    key={tag}
+                    style={{ ...styles.tagPill, ...(activeTag === tag ? styles.tagPillActive : {}) }}
+                    onClick={() => { handleTagClick(tag); }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-          {allTags.map(tag => (
-            <button
-              key={tag}
-              style={{ ...styles.tagPill, ...(activeTag === tag ? styles.tagPillActive : {}) }}
-              onClick={() => { handleTagClick(tag); setFilterOpen(false); }}
-            >
-              {tag}
-            </button>
-          ))}
         </div>
       )}
 
@@ -395,11 +439,48 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
     flexShrink: 0,
   },
+  filterPanel: {
+    padding: '0 16px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  },
+  filterSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  },
+  starFilterRow: {
+    display: 'flex',
+    gap: 6,
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+  },
+  starFilterBtn: {
+    padding: '5px 10px',
+    borderRadius: 20,
+    border: '1px solid var(--border)',
+    background: 'var(--bg-card)',
+    color: '#f59e0b',
+    fontSize: 13,
+    cursor: 'pointer',
+    letterSpacing: 1,
+  },
+  starFilterBtnActive: {
+    background: '#fef3c7',
+    borderColor: '#f59e0b',
+    fontWeight: 700,
+  },
   tagFilter: {
     display: 'flex',
     gap: 8,
-    padding: '0 16px 12px',
-    overflowX: 'auto' as const,
     flexWrap: 'wrap' as const,
   },
   tagPill: {

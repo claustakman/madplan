@@ -13,9 +13,10 @@ export async function handleRecipes(request: Request, env: Env, url: URL): Promi
     const q = url.searchParams.get('q');
     const tags = url.searchParams.get('tags');
     const ingredient = url.searchParams.get('ingredient');
+    const minRating = url.searchParams.get('min_rating');
 
     let query = 'SELECT DISTINCT r.* FROM recipes r';
-    const params: string[] = [];
+    const params: (string | number)[] = [];
 
     if (ingredient) {
       query += ' LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id';
@@ -23,8 +24,9 @@ export async function handleRecipes(request: Request, env: Env, url: URL): Promi
 
     const conditions: string[] = [];
     if (q) {
-      conditions.push('r.title LIKE ?');
-      params.push(`%${q}%`);
+      // Search in title and tags
+      conditions.push('(r.title LIKE ? OR r.tags LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`);
     }
     if (ingredient) {
       conditions.push('ri.name LIKE ?');
@@ -37,6 +39,10 @@ export async function handleRecipes(request: Request, env: Env, url: URL): Promi
         params.push(`%${tag.trim()}%`);
       });
     }
+    if (minRating) {
+      conditions.push('r.rating >= ?');
+      params.push(parseInt(minRating));
+    }
 
     if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
     query += ' ORDER BY r.created_at DESC';
@@ -47,8 +53,8 @@ export async function handleRecipes(request: Request, env: Env, url: URL): Promi
   }
 
   if (request.method === 'POST') {
-    const { title, description, url: recipeUrl, servings, prep_minutes, tags } = await request.json() as {
-      title: string; description?: string; url?: string; servings?: number; prep_minutes?: number; tags?: string[];
+    const { title, description, url: recipeUrl, servings, prep_minutes, tags, rating } = await request.json() as {
+      title: string; description?: string; url?: string; servings?: number; prep_minutes?: number; tags?: string[]; rating?: number;
     };
 
     if (!title) return Response.json({ error: 'Titel er påkrævet' }, { status: 400 });
@@ -57,10 +63,10 @@ export async function handleRecipes(request: Request, env: Env, url: URL): Promi
     const created_at = new Date().toISOString();
 
     await env.DB.prepare(
-      'INSERT INTO recipes (id, title, description, url, servings, prep_minutes, tags, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, title, description ?? null, recipeUrl ?? null, servings ?? 4, prep_minutes ?? null, JSON.stringify(tags ?? []), user.id, created_at).run();
+      'INSERT INTO recipes (id, title, description, url, servings, prep_minutes, tags, rating, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, title, description ?? null, recipeUrl ?? null, servings ?? 4, prep_minutes ?? null, JSON.stringify(tags ?? []), rating ?? 0, user.id, created_at).run();
 
-    return Response.json({ id, title, description, url: recipeUrl, servings: servings ?? 4, prep_minutes, tags: tags ?? [], created_by: user.id, created_at }, { status: 201 });
+    return Response.json({ id, title, description, url: recipeUrl, servings: servings ?? 4, prep_minutes, tags: tags ?? [], rating: rating ?? 0, created_by: user.id, created_at }, { status: 201 });
   }
 
   return Response.json({ error: 'Method not allowed' }, { status: 405 });
@@ -81,13 +87,13 @@ export async function handleRecipe(request: Request, env: Env, id: string): Prom
   }
 
   if (request.method === 'PUT') {
-    const { title, description, url: recipeUrl, servings, prep_minutes, tags } = await request.json() as {
-      title?: string; description?: string; url?: string; servings?: number; prep_minutes?: number; tags?: string[];
+    const { title, description, url: recipeUrl, servings, prep_minutes, tags, rating } = await request.json() as {
+      title?: string; description?: string; url?: string; servings?: number; prep_minutes?: number; tags?: string[]; rating?: number;
     };
 
     await env.DB.prepare(
-      'UPDATE recipes SET title = COALESCE(?, title), description = COALESCE(?, description), url = COALESCE(?, url), servings = COALESCE(?, servings), prep_minutes = COALESCE(?, prep_minutes), tags = COALESCE(?, tags) WHERE id = ?'
-    ).bind(title ?? null, description ?? null, recipeUrl ?? null, servings ?? null, prep_minutes ?? null, tags ? JSON.stringify(tags) : null, id).run();
+      'UPDATE recipes SET title = COALESCE(?, title), description = COALESCE(?, description), url = COALESCE(?, url), servings = COALESCE(?, servings), prep_minutes = COALESCE(?, prep_minutes), tags = COALESCE(?, tags), rating = COALESCE(?, rating) WHERE id = ?'
+    ).bind(title ?? null, description ?? null, recipeUrl ?? null, servings ?? null, prep_minutes ?? null, tags ? JSON.stringify(tags) : null, rating ?? null, id).run();
 
     const updated = await env.DB.prepare('SELECT * FROM recipes WHERE id = ?').bind(id).first();
     return Response.json(updated);
