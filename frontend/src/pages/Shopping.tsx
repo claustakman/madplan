@@ -218,9 +218,10 @@ function ItemRow({ item, onCheck, onLongPress }: {
         {item.store && (
           <span style={s.itemStore}>{item.store}</span>
         )}
-        {isChecked && item.checked_by_name && (
-          <span style={s.checkedBy}>Krydset af {item.checked_by_name}</span>
-        )}
+        <span style={s.itemByLine}>
+          {item.added_by_name && <span>Tilføjet af {item.added_by_name}</span>}
+          {isChecked && item.checked_by_name && <span> · Krydset af {item.checked_by_name}</span>}
+        </span>
       </div>
       {/* Detalje-knap til desktop/mus */}
       <button
@@ -512,6 +513,7 @@ const s: Record<string, React.CSSProperties> = {
   itemMetaSep: { color: 'var(--text-secondary)', fontSize: 13 },
   itemStore: { color: '#7B1FA2', fontSize: 13 },
   checkedBy: { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' },
+  itemByLine: { fontSize: 12, color: 'var(--text-secondary)' },
   detailTrigger: {
     flexShrink: 0, width: 36, height: 44, display: 'flex', alignItems: 'center',
     justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer',

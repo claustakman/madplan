@@ -109,6 +109,9 @@ function IngredientsTab() {
                 {ing.default_store ? ` · ${ing.default_store}` : ''}
               </span>
             </div>
+            {Number(ing.times_bought) > 0 && (
+              <span style={s.timesBought}>🛒 {ing.times_bought}</span>
+            )}
             <div style={s.rowActions}>
               <button style={s.editBtn} onClick={() => setEditItem(ing)}>✏️</button>
               <button style={s.deleteBtn} onClick={() => handleDelete(ing.id)}>🗑️</button>
@@ -363,6 +366,7 @@ const s: Record<string, React.CSSProperties> = {
   rowName: { fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' },
   rowMeta: { fontSize: 12, color: 'var(--text-secondary)' },
   rowActions: { display: 'flex', gap: 4 },
+  timesBought: { fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginRight: 4 },
   editBtn: {
     width: 36, height: 36, borderRadius: 8, background: 'var(--bg-primary)',
     border: '1px solid var(--border)', cursor: 'pointer', fontSize: 15,
