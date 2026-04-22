@@ -30,17 +30,9 @@ function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) 
     <button style={styles.card} onClick={onOpen}>
       <div style={styles.cardBody}>
         <span style={styles.cardTitle}>{recipe.title}</span>
-        <div style={styles.cardMeta}>
-          {recipe.prep_minutes != null && (
-            <span style={styles.metaChip}>⏱ {recipe.prep_minutes} min</span>
-          )}
-          {recipe.servings && (
-            <span style={styles.metaChip}>👤 {recipe.servings}</span>
-          )}
-          {recipe.url && (
-            <span style={styles.metaChip}>🔗 Link</span>
-          )}
-        </div>
+        {recipe.url && (
+          <span style={styles.metaChip}>🔗 Link</span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {recipe.rating > 0 && <StarDisplay rating={recipe.rating} />}
           {tags.length > 0 && tags.map(t => <span key={t} style={styles.tag}>{t}</span>)}
