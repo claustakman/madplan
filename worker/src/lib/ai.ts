@@ -8,7 +8,7 @@ export interface ParsedShoppingItem {
 export async function parseShopping(
   text: string,
   apiKey: string,
-  model = 'claude-haiku-4-20250514'
+  model = 'claude-haiku-4-5'
 ): Promise<ParsedShoppingItem[]> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -74,7 +74,7 @@ export async function generateRecipe(
   prompt: string,
   urlContent: string | null,
   apiKey: string,
-  model = 'claude-sonnet-4-20250514'
+  model = 'claude-sonnet-4-5'
 ): Promise<RecipeSuggestion> {
   const context = urlContent
     ? `\n\nIndhold fra URL:\n${urlContent.slice(0, 6000)}`
@@ -132,7 +132,7 @@ Regler:
 export async function suggestRecipes(
   prompt: string,
   apiKey: string,
-  model = 'claude-sonnet-4-20250514'
+  model = 'claude-sonnet-4-5'
 ): Promise<RecipeSuggestion[]> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -180,7 +180,7 @@ export async function suggestPlan(
   days: number[],
   existingRecipes: Array<{ id: string; title: string; tags: string[] }>,
   apiKey: string,
-  model = 'claude-sonnet-4-20250514'
+  model = 'claude-sonnet-4-5'
 ): Promise<PlanSuggestion> {
   const recipeList = existingRecipes.map(r => `- ID: ${r.id}, Titel: ${r.title}, Tags: ${r.tags.join(', ')}`).join('\n');
 

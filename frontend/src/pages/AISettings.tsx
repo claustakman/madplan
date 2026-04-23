@@ -9,9 +9,10 @@ interface Settings {
 }
 
 const MODELS = [
-  { value: 'claude-haiku-4-20250514', label: 'Claude Haiku 4 (hurtig)' },
-  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4 (anbefalet)' },
-  { value: 'claude-opus-4-20250514', label: 'Claude Opus 4 (kraftfuld)' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (hurtig)' },
+  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5 (anbefalet)' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (nyeste)' },
+  { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (kraftfuld)' },
   { value: 'claude-haiku-3-5', label: 'Claude Haiku 3.5' },
   { value: 'claude-sonnet-3-5', label: 'Claude Sonnet 3.5' },
 ];
@@ -123,9 +124,9 @@ export default function AISettings() {
   const isAdmin = user?.role === 'admin';
 
   const [settings, setSettings] = useState<Settings>({
-    ai_model_shopping: 'claude-haiku-4-20250514',
-    ai_model_recipe: 'claude-sonnet-4-20250514',
-    ai_model_mealplan: 'claude-sonnet-4-20250514',
+    ai_model_shopping: 'claude-haiku-4-5',
+    ai_model_recipe: 'claude-sonnet-4-5',
+    ai_model_mealplan: 'claude-sonnet-4-5',
   });
   const [original, setOriginal] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
