@@ -437,10 +437,11 @@ interface WeekViewProps {
   onDayUpdated: (weekday: number, patch: Partial<MealPlanDay>) => void;
   onAddToShopping: () => void;
   onArchive: () => void;
+  onAISuggest: () => void;
   toastMsg: string | null;
 }
 
-function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping, onArchive, toastMsg }: WeekViewProps) {
+function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping, onArchive, onAISuggest, toastMsg }: WeekViewProps) {
   const [editingWeekday, setEditingWeekday] = useState<number | null>(null);
   const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
 
@@ -472,6 +473,9 @@ function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping,
 
       {plan && !plan.archived && (
         <div style={styles.weekActions}>
+          <button style={{ ...styles.actionBtn, background: '#f3e8ff', color: '#7c3aed' }} onClick={onAISuggest}>
+            ✨ Forslag til uge
+          </button>
           <button style={styles.actionBtn} onClick={onAddToShopping}>
             🛒 Opdater indkøbsliste
           </button>
@@ -508,6 +512,151 @@ function WeekView({ plan, monday, loading, users, onDayUpdated, onAddToShopping,
   );
 }
 
+// ─── AIMealPlanModal ─────────────────────────────────────────────────────────
+
+interface AIDayProposal {
+  weekday: number;
+  recipe_id: string | null;
+  recipe_title: string | null;
+  note: string | null;
+  isNew?: boolean; // fritekst-forslag, ingen katalog-match
+}
+
+function AIMealPlanModal({ monday, onClose, onApply }: {
+  monday: string;
+  onClose: () => void;
+  onApply: (days: AIDayProposal[]) => void;
+}) {
+  const [prompt, setPrompt] = useState('');
+  const [phase, setPhase] = useState<'input' | 'loading' | 'review'>('input');
+  const [proposals, setProposals] = useState<AIDayProposal[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set([1,2,3,4,5,6,7]));
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const generate = async () => {
+    if (!prompt.trim()) return;
+    setPhase('loading');
+    try {
+      type PlanDay = { recipe_id: string | null; suggested_recipe: { title: string } | null; note: string | null };
+      const result = await apiPost<Record<string, PlanDay>>('/api/ai/suggest-plan', {
+        prompt: prompt.trim(),
+        days: [1, 2, 3, 4, 5, 6, 7],
+      });
+      const days: AIDayProposal[] = Object.entries(result).map(([wd, day]) => ({
+        weekday: parseInt(wd),
+        recipe_id: day.recipe_id ?? null,
+        recipe_title: day.recipe_id ? null : (day.suggested_recipe?.title ?? null),
+        note: day.note ?? (day.suggested_recipe?.title ? day.suggested_recipe.title : null),
+        isNew: !day.recipe_id && !!day.suggested_recipe,
+      }));
+      days.sort((a, b) => a.weekday - b.weekday);
+      setProposals(days);
+      setPhase('review');
+    } catch {
+      setPhase('input');
+      alert('Noget gik galt — prøv igen.');
+    }
+  };
+
+  const toggleDay = (wd: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(wd) ? next.delete(wd) : next.add(wd);
+      return next;
+    });
+  };
+
+  const apply = () => {
+    onApply(proposals.filter(p => selected.has(p.weekday)));
+  };
+
+  return (
+    <div style={styles.fullscreen}>
+      <div style={styles.fsHeader}>
+        <button style={styles.fsBack} onClick={onClose}>✕</button>
+        <span style={styles.fsTitle}>✨ Forslag til uge</span>
+        <div style={{ width: 36 }} />
+      </div>
+
+      {phase === 'input' && (
+        <div style={styles.fsSubview}>
+          <p style={{ fontSize: 14, color: '#666', margin: 0 }}>
+            Beskriv hvad der skal tages hensyn til denne uge.
+          </p>
+          <textarea
+            ref={inputRef}
+            style={{ ...styles.fsSearchInput, resize: 'none' as const, minHeight: 100 }}
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="fx: vi har gæster lørdag, vil gerne have vegetar onsdag, noget hurtigt tirsdag"
+            rows={4}
+          />
+          <button
+            style={{ ...styles.fsSaveBtn, opacity: prompt.trim() ? 1 : 0.5, marginTop: 4 }}
+            onClick={generate}
+            disabled={!prompt.trim()}
+          >
+            Generér forslag ✨
+          </button>
+        </div>
+      )}
+
+      {phase === 'loading' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 16 }}>
+          <div style={styles.aiSpinner} />
+          <p style={{ fontSize: 15, color: '#999' }}>AI planlægger din uge…</p>
+        </div>
+      )}
+
+      {phase === 'review' && (
+        <>
+          <div style={{ flex: 1, overflowY: 'auto' as const, padding: '8px 16px' }}>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+              Vælg hvilke dage du vil anvende. Fritekst-forslag gemmes som noter.
+            </p>
+            {proposals.map(p => {
+              const label = p.recipe_id
+                ? `📖 ${p.note ?? 'Opskrift fra katalog'}`
+                : p.isNew
+                  ? `📝 ${p.note ?? '–'}`
+                  : p.note === 'Rester' ? '🍲 Rester' : '–';
+              const isChecked = selected.has(p.weekday);
+              return (
+                <button
+                  key={p.weekday}
+                  style={{ ...styles.resultItem, ...(!isChecked ? { opacity: 0.45 } : {}) }}
+                  onClick={() => toggleDay(p.weekday)}
+                >
+                  <div style={{ minWidth: 76 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{WEEKDAYS[p.weekday - 1]}</div>
+                    <div style={{ fontSize: 12, color: '#999' }}>{formatDate(addDays(monday, p.weekday - 1))}</div>
+                  </div>
+                  <div style={{ flex: 1, fontSize: 14, color: '#333', textAlign: 'left' as const }}>{label}</div>
+                  <div style={{ fontSize: 18, color: isChecked ? '#1976D2' : '#ccc' }}>{isChecked ? '✓' : '○'}</div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={styles.fsBottom}>
+            <div style={styles.fsBottomRow}>
+              <button style={styles.fsBottomBtn} onClick={() => setPhase('input')}>← Ret</button>
+              <button
+                style={{ ...styles.fsBottomBtn, background: '#1976D2', color: '#fff', opacity: selected.size ? 1 : 0.5 }}
+                onClick={apply}
+                disabled={selected.size === 0}
+              >
+                Anvend {selected.size} dage
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function MealPlan() {
@@ -516,6 +665,7 @@ export default function MealPlan() {
   const [loading, setLoading] = useState<boolean[]>([true, true]);
   const [users, setUsers] = useState<User[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [showAI, setShowAI] = useState(false);
   const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -627,6 +777,19 @@ export default function MealPlan() {
     }
   };
 
+  const handleAIApply = async (days: AIDayProposal[]) => {
+    setShowAI(false);
+    for (const day of days) {
+      await handleDayUpdated(activeTab, day.weekday, {
+        recipe_id: day.recipe_id,
+        recipe_title: day.recipe_title ?? undefined,
+        note: day.recipe_id ? null : (day.note ?? null),
+        assigned_user_id: null,
+      });
+    }
+    showToast(`${days.length} dage opdateret`);
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.tabBar}>
@@ -649,8 +812,17 @@ export default function MealPlan() {
         onDayUpdated={(wd, patch) => handleDayUpdated(activeTab, wd, patch)}
         onAddToShopping={() => handleAddToShopping(activeTab)}
         onArchive={() => handleArchive(activeTab)}
+        onAISuggest={() => setShowAI(true)}
         toastMsg={toastMsg}
       />
+
+      {showAI && (
+        <AIMealPlanModal
+          monday={mondays[activeTab]}
+          onClose={() => setShowAI(false)}
+          onApply={handleAIApply}
+        />
+      )}
     </div>
   );
 }
@@ -782,6 +954,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  aiSpinner: {
+    width: 40, height: 40, borderRadius: '50%',
+    border: '3px solid #e3f0fc', borderTopColor: '#1976D2',
+    animation: 'spin 0.8s linear infinite',
   },
   archivedBadge: {
     marginTop: 16,

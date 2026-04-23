@@ -77,6 +77,7 @@ export default function Shopping() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   const [detailItem, setDetailItem] = useState<ShoppingItem | null>(null);
 
   const fetchItems = useCallback(async () => {
@@ -132,6 +133,9 @@ export default function Shopping() {
       {/* Toolbar */}
       <div style={s.toolbar}>
         <span style={s.count}>{uncheckedCount} tilbage</span>
+        <button style={s.aiBtn} onClick={() => setShowAI(true)} aria-label="Tilføj med AI">
+          🎤 Dikter
+        </button>
       </div>
 
       {/* Liste */}
@@ -194,6 +198,14 @@ export default function Shopping() {
         />
       )}
 
+      {/* AI-modal */}
+      {showAI && (
+        <AIShoppingModal
+          onClose={() => setShowAI(false)}
+          onAdded={items => { items.forEach(onAdded); setShowAI(false); }}
+        />
+      )}
+
       {/* Detalje-panel */}
       {detailItem && (
         <DetailPanel
@@ -249,6 +261,157 @@ function ItemRow({ item, onCheck, onLongPress }: {
       >
         ⋯
       </button>
+    </div>
+  );
+}
+
+// ─── AIShoppingModal — dikter eller skriv, AI parser til varer ───────────────
+
+interface ParsedItem {
+  name: string;
+  quantity: string | null;
+  ambiguous: boolean;
+  alternatives?: string[];
+}
+
+function AIShoppingModal({ onClose, onAdded }: {
+  onClose: () => void;
+  onAdded: (items: ShoppingItem[]) => void;
+}) {
+  const [text, setText] = useState('');
+  const [phase, setPhase] = useState<'input' | 'loading' | 'review'>('input');
+  const [parsed, setParsed] = useState<ParsedItem[]>([]);
+  const [resolved, setResolved] = useState<Record<number, string>>({}); // idx → resolved name
+  const [adding, setAdding] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  const parse = async () => {
+    if (!text.trim()) return;
+    setPhase('loading');
+    try {
+      const result = await apiPost<ParsedItem[]>('/api/ai/parse-shopping', { text: text.trim() });
+      setParsed(result);
+      // Pre-resolve non-ambiguous items
+      const init: Record<number, string> = {};
+      result.forEach((item, i) => { if (!item.ambiguous) init[i] = item.name; });
+      setResolved(init);
+      setPhase('review');
+    } catch {
+      setPhase('input');
+      alert('Noget gik galt — prøv igen.');
+    }
+  };
+
+  const addAll = async () => {
+    setAdding(true);
+    const added: ShoppingItem[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const name = resolved[i];
+      if (!name?.trim()) continue;
+      const item = await apiPost<ShoppingItem>('/api/shopping', {
+        name: name.trim(),
+        quantity: parsed[i].quantity ?? null,
+      }).catch(() => null);
+      if (item) added.push(item);
+    }
+    onAdded(added);
+  };
+
+  const allResolved = parsed.length > 0 && parsed.every((_, i) => resolved[i]?.trim());
+
+  return (
+    <div style={s.overlay} onClick={onClose}>
+      <div style={s.modal} onClick={e => e.stopPropagation()}>
+        <div style={s.modalHandle} />
+
+        {phase === 'input' && (
+          <>
+            <p style={s.aiTitle}>🎤 Dikter eller skriv dine varer</p>
+            <p style={s.aiHint}>Fx: "mælk, 6 æg, 500g hakket oksekød og en agurk"</p>
+            <textarea
+              ref={textareaRef}
+              style={{ ...s.searchInput, ...s.aiTextarea }}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Skriv eller dikter hvad du mangler…"
+              rows={4}
+            />
+            <button
+              style={{ ...s.cancelBtnFull, ...s.aiParseBtn, opacity: text.trim() ? 1 : 0.5 }}
+              onClick={parse}
+              disabled={!text.trim()}
+            >
+              Analysér med AI ✨
+            </button>
+            <button style={s.cancelBtnFull} onClick={onClose}>Luk</button>
+          </>
+        )}
+
+        {phase === 'loading' && (
+          <div style={s.aiLoading}>
+            <div style={s.aiSpinner} />
+            <p style={s.aiLoadingText}>AI analyserer din liste…</p>
+          </div>
+        )}
+
+        {phase === 'review' && (
+          <>
+            <p style={s.aiTitle}>Gennemse din liste</p>
+            <div style={s.aiReviewList}>
+              {parsed.map((item, i) => (
+                <div key={i} style={s.aiReviewRow}>
+                  {item.ambiguous ? (
+                    <div style={s.aiAmbiguous}>
+                      <span style={s.aiAmbiguousLabel}>❓ Hvad mener du?</span>
+                      <div style={s.aiAltBtns}>
+                        {(item.alternatives ?? [item.name]).map(alt => (
+                          <button
+                            key={alt}
+                            style={{
+                              ...s.aiAltBtn,
+                              ...(resolved[i] === alt ? s.aiAltBtnActive : {}),
+                            }}
+                            onClick={() => setResolved(prev => ({ ...prev, [i]: alt }))}
+                          >
+                            {alt}
+                          </button>
+                        ))}
+                        <button
+                          style={{ ...s.aiAltBtn, color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                          onClick={() => setResolved(prev => ({ ...prev, [i]: '' }))}
+                        >
+                          Fjern
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={s.aiResolvedRow}>
+                      <span style={s.aiResolvedName}>
+                        {item.quantity && <span style={s.aiQty}>{item.quantity} </span>}
+                        {resolved[i]}
+                      </span>
+                      <button
+                        style={s.aiRemoveBtn}
+                        onClick={() => setResolved(prev => ({ ...prev, [i]: '' }))}
+                      >✕</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              style={{ ...s.cancelBtnFull, ...s.aiParseBtn, opacity: adding || !allResolved ? 0.6 : 1 }}
+              onClick={addAll}
+              disabled={adding || !allResolved}
+            >
+              {adding ? 'Tilføjer…' : `Tilføj ${parsed.filter((_, i) => resolved[i]?.trim()).length} varer`}
+            </button>
+            <button style={s.cancelBtnFull} onClick={() => setPhase('input')}>← Ret tekst</button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -496,6 +659,11 @@ const s: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10,
   },
   count: { fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' },
+  aiBtn: {
+    fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: '#e3f0fc',
+    border: '1px solid #b3d1f0', borderRadius: 20, padding: '6px 14px',
+    cursor: 'pointer', minHeight: 36,
+  },
   clearBtn: {
     fontSize: 13, color: 'var(--danger)', background: 'none', border: 'none',
     cursor: 'pointer', padding: '6px 10px', borderRadius: 6, minHeight: 44,
@@ -603,6 +771,35 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--bg-primary)', fontSize: 13, cursor: 'pointer',
     color: 'var(--text-primary)', minHeight: 36,
   },
+  // AI modal
+  aiTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
+  aiHint: { fontSize: 13, color: 'var(--text-secondary)', margin: '-4px 0 0' },
+  aiTextarea: { resize: 'none' as const, minHeight: 100 },
+  aiParseBtn: {
+    background: 'var(--accent)', color: '#fff', border: 'none',
+    fontWeight: 700, fontSize: 15,
+  },
+  aiLoading: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 16, padding: '32px 0' },
+  aiSpinner: {
+    width: 36, height: 36, borderRadius: '50%',
+    border: '3px solid #e3f0fc', borderTopColor: 'var(--accent)',
+    animation: 'spin 0.8s linear infinite',
+  },
+  aiLoadingText: { fontSize: 15, color: 'var(--text-secondary)' },
+  aiReviewList: { display: 'flex', flexDirection: 'column' as const, gap: 8, maxHeight: '50dvh', overflowY: 'auto' as const },
+  aiReviewRow: { borderBottom: '1px solid var(--border)', paddingBottom: 8 },
+  aiResolvedRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  aiResolvedName: { fontSize: 15, color: 'var(--text-primary)' },
+  aiQty: { fontWeight: 700, color: 'var(--text-secondary)', fontSize: 13 },
+  aiRemoveBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer', padding: '2px 6px', flexShrink: 0 },
+  aiAmbiguous: { display: 'flex', flexDirection: 'column' as const, gap: 8 },
+  aiAmbiguousLabel: { fontSize: 13, fontWeight: 600, color: '#b45309' },
+  aiAltBtns: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
+  aiAltBtn: {
+    padding: '6px 12px', borderRadius: 20, border: '1px solid var(--border)',
+    background: 'var(--bg-primary)', fontSize: 13, cursor: 'pointer', color: 'var(--text-primary)',
+  },
+  aiAltBtnActive: { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' },
   cancelBtnFull: {
     width: '100%', padding: 14, borderRadius: 8,
     background: 'var(--bg-primary)', border: '1px solid var(--border)',

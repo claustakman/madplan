@@ -2,6 +2,143 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiGet, apiPost, apiDelete } from '../lib/api';
 import CreateRecipeModal, { RecipeForm, RecipeData, RecipeIngredient } from '../components/CreateRecipeModal';
 
+// ── AI generate modal ─────────────────────────────────────────────────────────
+
+interface AISuggestion {
+  title: string;
+  description: string;
+  tags: string[];
+  prep_minutes: number | null;
+  servings: number;
+  ingredients: Array<{ name: string; quantity: string }>;
+  url: string | null;
+}
+
+function AIRecipeModal({ onClose, onCreated }: { onClose: () => void; onCreated: (r: RecipeData) => void }) {
+  const [prompt, setPrompt] = useState('');
+  const [url, setUrl] = useState('');
+  const [phase, setPhase] = useState<'input' | 'loading' | 'form'>('input');
+  const [suggestion, setSuggestion] = useState<AISuggestion | null>(null);
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const generate = async () => {
+    if (!prompt.trim() && !url.trim()) return;
+    setPhase('loading');
+    setError('');
+    try {
+      const result = await apiPost<AISuggestion>('/api/ai/generate-recipe', {
+        prompt: prompt.trim() || 'Generer en opskrift fra denne URL',
+        url: url.trim() || undefined,
+      });
+      setSuggestion(result);
+      setPhase('form');
+    } catch {
+      setError('Noget gik galt — prøv igen.');
+      setPhase('input');
+    }
+  };
+
+  // Build a RecipeData-shaped object from the AI suggestion for RecipeForm
+  const suggestionAsRecipe: RecipeData | undefined = suggestion ? {
+    id: 'ai-draft',
+    title: suggestion.title,
+    description: suggestion.description,
+    url: suggestion.url,
+    servings: suggestion.servings,
+    prep_minutes: suggestion.prep_minutes,
+    tags: JSON.stringify(suggestion.tags),
+    rating: 0,
+    created_by: '',
+    created_at: '',
+    ingredients: suggestion.ingredients.map((ing, i) => ({
+      id: crypto.randomUUID(),
+      recipe_id: 'ai-draft',
+      ingredient_id: null,
+      name: ing.name,
+      quantity: ing.quantity || null,
+      category_id: null,
+      sort_order: i,
+    })),
+  } : undefined;
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>
+            {phase === 'form' ? suggestion?.title : '✨ Opret opskrift med AI'}
+          </h2>
+          <button style={styles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+
+        {phase === 'input' && (
+          <>
+            <div style={styles.modalBody}>
+              <label style={aiS.label}>Beskriv hvad du vil lave</label>
+              <textarea
+                ref={inputRef}
+                style={aiS.textarea}
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                placeholder="fx: en hurtig pasta med laks og fløde til 4 personer"
+                rows={3}
+              />
+              <label style={aiS.label}>Link til opskrift <span style={aiS.opt}>(valgfrit)</span></label>
+              <input
+                style={aiS.input}
+                type="url"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                placeholder="https://…"
+              />
+              {error && <p style={aiS.error}>{error}</p>}
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.btnSecondary} onClick={onClose}>Annuller</button>
+              <button
+                style={{ ...styles.btnPrimary, opacity: prompt.trim() || url.trim() ? 1 : 0.5 }}
+                onClick={generate}
+                disabled={!prompt.trim() && !url.trim()}
+              >
+                Generer ✨
+              </button>
+            </div>
+          </>
+        )}
+
+        {phase === 'loading' && (
+          <div style={aiS.loading}>
+            <div style={aiS.spinner} />
+            <p style={aiS.loadingText}>AI genererer opskrift…</p>
+          </div>
+        )}
+
+        {phase === 'form' && suggestionAsRecipe && (
+          <RecipeForm
+            recipe={suggestionAsRecipe}
+            onSaved={r => onCreated(r)}
+            onCancel={() => setPhase('input')}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+const aiS: Record<string, React.CSSProperties> = {
+  label: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: -4 },
+  opt: { fontWeight: 400, color: '#bbb' },
+  textarea: { width: '100%', padding: '10px 12px', fontSize: 16, border: '1px solid var(--border)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' as const, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'inherit', resize: 'none' as const },
+  input: { width: '100%', padding: '10px 12px', fontSize: 16, border: '1px solid var(--border)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' as const, background: 'var(--bg-primary)', color: 'var(--text-primary)' },
+  error: { color: 'var(--danger)', fontSize: 13, margin: 0 },
+  loading: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', gap: 16, padding: '60px 0' },
+  spinner: { width: 40, height: 40, borderRadius: '50%', border: '3px solid #e3f0fc', borderTopColor: 'var(--accent)', animation: 'spin 0.8s linear infinite' },
+  loadingText: { fontSize: 15, color: 'var(--text-secondary)', margin: 0 },
+};
+
 interface Recipe extends RecipeData {
   ingredients?: RecipeIngredient[];
 }
@@ -187,6 +324,7 @@ export default function Recipes() {
   const [minRating, setMinRating] = useState(0);
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showAIRecipe, setShowAIRecipe] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -250,7 +388,10 @@ export default function Recipes() {
       {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.heading}>Opskrifter</h1>
-        <button style={styles.fabSmall} onClick={() => setShowCreate(true)}>＋</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={styles.aiSmall} onClick={() => setShowAIRecipe(true)}>✨ AI</button>
+          <button style={styles.fabSmall} onClick={() => setShowCreate(true)}>＋</button>
+        </div>
       </div>
 
       {/* Search + filter row */}
@@ -350,6 +491,12 @@ export default function Recipes() {
           onCreated={handleCreated}
         />
       )}
+      {showAIRecipe && (
+        <AIRecipeModal
+          onClose={() => setShowAIRecipe(false)}
+          onCreated={r => { handleCreated(r); setShowAIRecipe(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -386,6 +533,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     lineHeight: 1,
+  },
+  aiSmall: {
+    height: 40,
+    borderRadius: 20,
+    background: '#f3e8ff',
+    color: '#7c3aed',
+    fontSize: 14,
+    fontWeight: 700,
+    border: '1px solid #d8b4fe',
+    cursor: 'pointer',
+    padding: '0 16px',
+    display: 'flex',
+    alignItems: 'center',
   },
   searchRow: {
     padding: '0 16px 12px',

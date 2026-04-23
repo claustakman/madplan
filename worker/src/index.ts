@@ -12,7 +12,7 @@ import {
   handleMealPlan,
 } from './routes/mealplan';
 import { handleTemplates } from './routes/templates';
-import { handleAISuggestRecipes, handleAISuggestPlan } from './routes/ai';
+import { handleAIparseShopping, handleAIGenerateRecipe, handleAISuggestRecipes, handleAISuggestPlan } from './routes/ai';
 
 export interface Env {
   DB: D1Database;
@@ -126,7 +126,11 @@ export default {
       }
 
       // AI
-      else if (path === '/api/ai/suggest-recipes') {
+      else if (path === '/api/ai/parse-shopping' && request.method === 'POST') {
+        response = await handleAIparseShopping(request, env);
+      } else if (path === '/api/ai/generate-recipe' && request.method === 'POST') {
+        response = await handleAIGenerateRecipe(request, env);
+      } else if (path === '/api/ai/suggest-recipes') {
         response = await handleAISuggestRecipes(request, env);
       } else if (path === '/api/ai/suggest-plan') {
         response = await handleAISuggestPlan(request, env);

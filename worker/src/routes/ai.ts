@@ -1,10 +1,43 @@
 import { requireAuth } from '../lib/auth';
-import { suggestRecipes, suggestPlan } from '../lib/ai';
+import { parseShopping, generateRecipe, suggestRecipes, suggestPlan } from '../lib/ai';
 
 interface Env {
   DB: D1Database;
   JWT_SECRET: string;
   ANTHROPIC_API_KEY_MADPLAN: string;
+}
+
+export async function handleAIparseShopping(request: Request, env: Env): Promise<Response> {
+  await requireAuth(request, env);
+  const { text } = await request.json() as { text: string };
+  if (!text?.trim()) return Response.json({ error: 'Tekst er påkrævet' }, { status: 400 });
+  const items = await parseShopping(text.trim(), env.ANTHROPIC_API_KEY_MADPLAN);
+  return Response.json(items);
+}
+
+export async function handleAIGenerateRecipe(request: Request, env: Env): Promise<Response> {
+  await requireAuth(request, env);
+  const { prompt, url } = await request.json() as { prompt: string; url?: string };
+  if (!prompt?.trim()) return Response.json({ error: 'Prompt er påkrævet' }, { status: 400 });
+
+  let urlContent: string | null = null;
+  if (url?.trim()) {
+    try {
+      const res = await fetch(url.trim(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (res.ok) {
+        const html = await res.text();
+        // Strip HTML tags for a rough plain-text extraction
+        urlContent = html.replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+      }
+    } catch { /* URL-hentning fejlede, fortsæt uden */ }
+  }
+
+  const recipe = await generateRecipe(prompt.trim(), urlContent, env.ANTHROPIC_API_KEY_MADPLAN);
+  return Response.json(recipe);
 }
 
 export async function handleAISuggestRecipes(request: Request, env: Env): Promise<Response> {
@@ -20,29 +53,25 @@ export async function handleAISuggestRecipes(request: Request, env: Env): Promis
 export async function handleAISuggestPlan(request: Request, env: Env): Promise<Response> {
   await requireAuth(request, env);
 
-  const { prompt, days, existing_recipe_ids } = await request.json() as {
+  const { prompt, days } = await request.json() as {
     prompt: string;
     days: number[];
-    existing_recipe_ids?: string[];
   };
 
   if (!prompt || !days?.length) {
     return Response.json({ error: 'Prompt og dage er påkrævet' }, { status: 400 });
   }
 
-  let existingRecipes: Array<{ id: string; title: string; tags: string[] }> = [];
-  if (existing_recipe_ids?.length) {
-    const placeholders = existing_recipe_ids.map(() => '?').join(',');
-    const { results } = await env.DB.prepare(
-      `SELECT id, title, tags FROM recipes WHERE id IN (${placeholders})`
-    ).bind(...existing_recipe_ids).all<{ id: string; title: string; tags: string }>();
+  // Always use full recipe catalog so Claude can pick the best matches
+  const { results } = await env.DB.prepare(
+    'SELECT id, title, tags FROM recipes ORDER BY created_at DESC'
+  ).all<{ id: string; title: string; tags: string }>();
 
-    existingRecipes = results.map(r => ({
-      id: r.id,
-      title: r.title,
-      tags: JSON.parse(r.tags ?? '[]') as string[],
-    }));
-  }
+  const existingRecipes = results.map(r => ({
+    id: r.id,
+    title: r.title,
+    tags: JSON.parse(r.tags ?? '[]') as string[],
+  }));
 
   const plan = await suggestPlan(prompt, days, existingRecipes, env.ANTHROPIC_API_KEY_MADPLAN);
   return Response.json(plan);
