@@ -37,7 +37,10 @@ madplan/
 │   │   ├── 0001_initial.sql
 │   │   ├── 0002_categories_and_ingredients.sql
 │   │   ├── 0003_ingredients_times_bought.sql
-│   │   └── 0004_ingredients_defaults.sql
+│   │   ├── 0004_ingredients_defaults.sql
+│   │   ├── 0005_recipes.sql
+│   │   ├── 0006_mealplan_assigned_user.sql
+│   │   └── 0007_settings.sql
 │   └── src/
 │       ├── index.ts
 │       ├── lib/
@@ -51,6 +54,7 @@ madplan/
 │           ├── recipes.ts
 │           ├── mealplan.ts
 │           ├── templates.ts
+│           ├── settings.ts
 │           └── ai.ts
 ├── frontend/
 │   ├── vite.config.ts
@@ -76,6 +80,7 @@ madplan/
 │           ├── Archive.tsx
 │           ├── Profile.tsx
 │           ├── Settings.tsx
+│           ├── AISettings.tsx
 │           └── Users.tsx
 └── .github/
     └── workflows/
@@ -87,10 +92,10 @@ madplan/
 
 ## Roller
 
-| Rolle    | Rettigheder                                      |
-|----------|--------------------------------------------------|
-| `member` | Fuld adgang til alle features                    |
-| `admin`  | Alt + brugeradministration (opret/slet brugere)  |
+| Rolle    | Rettigheder                                                              |
+|----------|--------------------------------------------------------------------------|
+| `member` | Fuld adgang til alle features                                            |
+| `admin`  | Alt + brugeradministration + ændre AI-indstillinger (model-valg)         |
 
 ---
 
@@ -197,8 +202,18 @@ CREATE TABLE meal_plan_days (
   plan_id TEXT NOT NULL REFERENCES meal_plans(id) ON DELETE CASCADE,
   weekday INTEGER NOT NULL,
   recipe_id TEXT REFERENCES recipes(id),
-  note TEXT
+  note TEXT,
+  assigned_user_id TEXT REFERENCES users(id)  -- added in 0006
 );
+```
+
+### `settings`
+```sql
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+-- Default rows: ai_model_shopping, ai_model_recipe, ai_model_mealplan
 ```
 
 ---
@@ -264,7 +279,7 @@ Token gemmes i `localStorage` under nøglen `madplan_token`.
 - `font-size: 16px` på alle inputs (undgår iOS auto-zoom)
 - Touch targets: `min-height: 44px` på knapper og inputs
 - Bundnavigation (fast, 4 ikoner): 🛒 Indkøb · 🍽️ Madplan · 📖 Opskrifter · ☰ Mere
-- Mere-panel (slide-up sheet): Arkiv · Katalog · Profil · [Brugere — kun admin] · Log ud
+- Mere-panel (slide-up sheet): Arkiv · Katalog · [Brugere — kun admin] · Indstillinger · Profil · Log ud
 - `padding-bottom: env(safe-area-inset-bottom)` på bundnav
 
 ---
@@ -409,10 +424,9 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 | 2    | Indkøbsliste: kategorier, tilføj/fjern/kryds af, polling           | ✅     |
 | 2b   | Ingredienskatalog + Settings-side (admin: ingredienser, kategorier)| ✅     |
 | 3    | Opskriftskatalog: CRUD, søgning, tags, billeder                    | ✅     |
-| 4    | Madplan: ugevisning, opskriftsvalg, arkiv, skabeloner              | ⬜     |
-| 5    | "Tilføj til indkøbsliste" fra madplan                              | ⬜     |
-| 6    | AI: opskriftsforslag + madplansforslag                             | ⬜     |
-| 7    | PWA + mobil polish                                                 | ⬜     |
+| 4    | Madplan: ugevisning, opskriftsvalg, arkiv, ansvarlig bruger        | ✅     |
+| 5    | AI: diktering, opskriftsforslag, madplansforslag, model-settings   | ✅     |
+| 6    | PWA + mobil polish                                                 | ⬜     |
 
 ---
 
@@ -443,7 +457,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - CRUD: opret, vis, rediger, slet
 - Søgning (debounced) + tag-filter (collapsible dropdown)
 - 125 opskrifter importeret fra Safari-bookmarks via Node.js-script
-- Hvert kort viser: titel, ⏱ tid, 👤 portioner, 🔗 link-indikator, tags
+- Hvert kort viser: titel, 🔗 link-indikator, tags (prep/servings vises ikke på kort)
 - Tags som blå pills (`#e3f0fc` baggrund, `#1565C0` tekst)
 - Detailview: link-knap, meta (tid/portioner), tags, ingrediensliste, fremgangsmåde
 - `description`-kolonne i DB genbruges til fremgangsmåde/instruktioner
@@ -454,10 +468,11 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
   - **Liste**: strukturerede rækker `[mgl.-felt] [navn med autocomplete] [✕]` + `+ Tilføj ingrediens`
   - Skift mellem faner konverterer data automatisk (text↔structured)
   - Autocomplete: debounced (300ms) GET `/api/ingredients?q=…`, viser navn + kategori
-  - Ingen match → gemmes som fritekst (opretter ikke i katalog)
+  - Ved gem: eksakt navneopslag mod katalog — kun faktisk nye ingredienser fremhæves
 - `PUT /api/recipes/{id}/ingredients`: erstatter alle ingredienser atomisk
 - Indkøbsliste UX: blå tema, kategori-shading, fed mængde, lilla butik
 - Mængde vises til venstre for ingrediensnavn med fed skrift
+- ✨ AI-knap: foreslår opskrift fra fritekst-prompt eller URL (Worker fetcher URL server-side)
 
 ### Shopping UX-forbedringer (fase 2b→3)
 - Blåt farvetema (accent #1976D2) erstatter grønt
@@ -465,3 +480,41 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - Butik vises med lilla farve (#7B1FA2) hvis udfyldt
 - Mængde vises til venstre for varenavn med fed skrift
 - Flimmer-fix: 600ms delay på `noMatch`-visning ved kategorivælger
+- "Ryd afkrydsede" knap placeret i afkrydset-sektionens header som "Ryd alle"
+
+---
+
+## Fase 4 — Implementerede features
+
+### Madplan (/madplan)
+- To-ugers visning: "Denne uge" og "Næste uge" (tab-switch)
+- Plan oprettes automatisk hvis den ikke eksisterer (POST /api/mealplans)
+- 7 dag-kort per uge: ugedagsnavn, dato, status (tom / Rester / fritekst / opskrift)
+- DayEditor (slide-up modal):
+  - Søg i opskriftskatalog (debounced)
+  - Specialvalg: [Tom dag] [Rester]
+  - Fritekst hvis ingen opskrift
+  - Ansvarlig bruger-vælger (initialer-avatar på dag-kort)
+  - Kan gemme kun bruger uden at skifte opskrift
+- Klik på opskrift-pill åbner RecipeDetailModal (stopPropagation)
+- RecipeDetailModal: ingrediensliste, fremgangsmåde, "Tilføj til indkøbsliste"
+- Ugehandlinger: 🛒 Opdater indkøbsliste, 📦 Arkiver uge
+- `assigned_user_id` på `meal_plan_days` (migration 0006)
+- 🗓 AI-madplan: prompt → forslag for valgte dage → review med toggle → apply
+
+### AI-indstillinger (/ai-indstillinger)
+- Tre model-dropdowns: indkøbsdiktering, opskrift, madplan
+- Admin: kan gemme. Member: read-only med advarselsbanner
+- Modeller gemmes i `settings`-tabellen (migration 0007)
+- Worker læser model fra DB ved hvert AI-kald via `getSetting()`
+
+---
+
+## Fase 5 — Implementerede features
+
+### AI-features
+- **🎤 Indkøbsdiktering** (Shopping): textarea → `POST /api/ai/parse-shopping` → review med ambiguous-opløsning → tilføj valgte varer
+- **✨ AI-opskrift** (Recipes): prompt + valgfri URL → `POST /api/ai/generate-recipe` → pre-fylder opskriftsformularen
+- **🗓 AI-madplan** (MealPlan): prompt → `POST /api/ai/suggest-plan` med fuld opskriftskatalog → day-by-day review → apply
+- API-nøgle (`ANTHROPIC_API_KEY_MADPLAN`) kun på Worker — aldrig eksponeret i frontend
+- Model konfigureres per feature i `settings`-tabellen, læses ved runtime
