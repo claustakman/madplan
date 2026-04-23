@@ -277,12 +277,20 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
       const ings = getIngredients(saved.id);
       await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
 
-      // Find ingredients not already in the catalog (no ingredient_id)
-      const newIngs = ings.filter(i => !i.ingredient_id && i.name.trim());
-      if (newIngs.length > 0) {
+      // For ingredients without a catalog link, do an exact-match lookup to check
+      // if they already exist in the catalog (e.g. typed manually without picking from dropdown)
+      const unlinked = ings.filter(i => !i.ingredient_id && i.name.trim());
+      const trulyNew: typeof unlinked = [];
+      for (const ing of unlinked) {
+        const matches = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(ing.name.trim())}`).catch(() => []);
+        const exact = matches.find(m => m.name.toLowerCase() === ing.name.trim().toLowerCase());
+        if (!exact) trulyNew.push(ing);
+      }
+
+      if (trulyNew.length > 0) {
         savedRecipeRef.current = saved;
         savedIngsRef.current = ings;
-        setCatalogEntries(newIngs.map(i => ({ name: i.name, quantity: i.quantity, category_id: i.category_id })));
+        setCatalogEntries(trulyNew.map(i => ({ name: i.name, quantity: i.quantity, category_id: i.category_id })));
         setSaving(false);
       } else {
         onSaved({ ...saved, ingredients: ings });
