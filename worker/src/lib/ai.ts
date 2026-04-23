@@ -7,7 +7,8 @@ export interface ParsedShoppingItem {
 
 export async function parseShopping(
   text: string,
-  apiKey: string
+  apiKey: string,
+  model = 'claude-haiku-4-20250514'
 ): Promise<ParsedShoppingItem[]> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -17,7 +18,7 @@ export async function parseShopping(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-20250514',
+      model,
       max_tokens: 1024,
       messages: [
         {
@@ -72,7 +73,8 @@ export interface PlanSuggestion {
 export async function generateRecipe(
   prompt: string,
   urlContent: string | null,
-  apiKey: string
+  apiKey: string,
+  model = 'claude-sonnet-4-20250514'
 ): Promise<RecipeSuggestion> {
   const context = urlContent
     ? `\n\nIndhold fra URL:\n${urlContent.slice(0, 6000)}`
@@ -129,7 +131,8 @@ Regler:
 
 export async function suggestRecipes(
   prompt: string,
-  apiKey: string
+  apiKey: string,
+  model = 'claude-sonnet-4-20250514'
 ): Promise<RecipeSuggestion[]> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -139,7 +142,7 @@ export async function suggestRecipes(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model,
       max_tokens: 2048,
       messages: [
         {
@@ -176,7 +179,8 @@ export async function suggestPlan(
   prompt: string,
   days: number[],
   existingRecipes: Array<{ id: string; title: string; tags: string[] }>,
-  apiKey: string
+  apiKey: string,
+  model = 'claude-sonnet-4-20250514'
 ): Promise<PlanSuggestion> {
   const recipeList = existingRecipes.map(r => `- ID: ${r.id}, Titel: ${r.title}, Tags: ${r.tags.join(', ')}`).join('\n');
 
@@ -188,7 +192,7 @@ export async function suggestPlan(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model,
       max_tokens: 2048,
       messages: [
         {

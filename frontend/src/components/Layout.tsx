@@ -56,14 +56,17 @@ export default function Layout() {
             <button style={styles.sheetItem} onClick={() => { navigate('/indstillinger'); setMenuOpen(false); }}>
               📋 Katalog
             </button>
-            <button style={styles.sheetItem} onClick={() => { navigate('/profil'); setMenuOpen(false); }}>
-              👤 Profil
-            </button>
             {user?.role === 'admin' && (
               <button style={styles.sheetItem} onClick={() => { navigate('/brugere'); setMenuOpen(false); }}>
                 👥 Brugere
               </button>
             )}
+            <button style={styles.sheetItem} onClick={() => { navigate('/ai-indstillinger'); setMenuOpen(false); }}>
+              ⚙️ Indstillinger
+            </button>
+            <button style={styles.sheetItem} onClick={() => { navigate('/profil'); setMenuOpen(false); }}>
+              👤 Profil
+            </button>
 
             <div style={styles.sheetDivider} />
 

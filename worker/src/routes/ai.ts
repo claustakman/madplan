@@ -7,11 +7,17 @@ interface Env {
   ANTHROPIC_API_KEY_MADPLAN: string;
 }
 
+async function getSetting(env: Env, key: string, fallback: string): Promise<string> {
+  const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>();
+  return row?.value ?? fallback;
+}
+
 export async function handleAIparseShopping(request: Request, env: Env): Promise<Response> {
   await requireAuth(request, env);
   const { text } = await request.json() as { text: string };
   if (!text?.trim()) return Response.json({ error: 'Tekst er påkrævet' }, { status: 400 });
-  const items = await parseShopping(text.trim(), env.ANTHROPIC_API_KEY_MADPLAN);
+  const model = await getSetting(env, 'ai_model_shopping', 'claude-haiku-4-20250514');
+  const items = await parseShopping(text.trim(), env.ANTHROPIC_API_KEY_MADPLAN, model);
   return Response.json(items);
 }
 
@@ -36,7 +42,8 @@ export async function handleAIGenerateRecipe(request: Request, env: Env): Promis
     } catch { /* URL-hentning fejlede, fortsæt uden */ }
   }
 
-  const recipe = await generateRecipe(prompt.trim(), urlContent, env.ANTHROPIC_API_KEY_MADPLAN);
+  const model = await getSetting(env, 'ai_model_recipe', 'claude-sonnet-4-20250514');
+  const recipe = await generateRecipe(prompt.trim(), urlContent, env.ANTHROPIC_API_KEY_MADPLAN, model);
   return Response.json(recipe);
 }
 
@@ -46,7 +53,8 @@ export async function handleAISuggestRecipes(request: Request, env: Env): Promis
   const { prompt } = await request.json() as { prompt: string };
   if (!prompt) return Response.json({ error: 'Prompt er påkrævet' }, { status: 400 });
 
-  const suggestions = await suggestRecipes(prompt, env.ANTHROPIC_API_KEY_MADPLAN);
+  const model = await getSetting(env, 'ai_model_recipe', 'claude-sonnet-4-20250514');
+  const suggestions = await suggestRecipes(prompt, env.ANTHROPIC_API_KEY_MADPLAN, model);
   return Response.json(suggestions);
 }
 
@@ -73,6 +81,7 @@ export async function handleAISuggestPlan(request: Request, env: Env): Promise<R
     tags: JSON.parse(r.tags ?? '[]') as string[],
   }));
 
-  const plan = await suggestPlan(prompt, days, existingRecipes, env.ANTHROPIC_API_KEY_MADPLAN);
+  const model = await getSetting(env, 'ai_model_mealplan', 'claude-sonnet-4-20250514');
+  const plan = await suggestPlan(prompt, days, existingRecipes, env.ANTHROPIC_API_KEY_MADPLAN, model);
   return Response.json(plan);
 }

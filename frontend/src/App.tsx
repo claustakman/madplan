@@ -9,6 +9,7 @@ import Recipes from './pages/Recipes';
 import Archive from './pages/Archive';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import AISettings from './pages/AISettings';
 import Users from './pages/Users';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Route path="/arkiv" element={<Archive />} />
         <Route path="/profil" element={<Profile />} />
         <Route path="/indstillinger" element={<Settings />} />
+        <Route path="/ai-indstillinger" element={<AISettings />} />
         <Route path="/brugere" element={<Users />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

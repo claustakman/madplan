@@ -13,6 +13,7 @@ import {
 } from './routes/mealplan';
 import { handleTemplates } from './routes/templates';
 import { handleAIparseShopping, handleAIGenerateRecipe, handleAISuggestRecipes, handleAISuggestPlan } from './routes/ai';
+import { handleSettings } from './routes/settings';
 
 export interface Env {
   DB: D1Database;
@@ -123,6 +124,11 @@ export default {
       // Templates
       else if (path === '/api/templates') {
         response = await handleTemplates(request, env);
+      }
+
+      // Settings
+      else if (path === '/api/settings') {
+        response = await handleSettings(request, env);
       }
 
       // AI
