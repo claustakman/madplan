@@ -310,8 +310,14 @@ function AIShoppingModal({ onClose, onAdded }: {
     for (let i = 0; i < parsed.length; i++) {
       const name = resolved[i];
       if (!name?.trim()) continue;
+
+      // Look up ingredient in catalog to get category + canonical name
+      const matches = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(name.trim())}`).catch(() => [] as Ingredient[]);
+      const exact = matches.find(m => m.name.toLowerCase() === name.trim().toLowerCase());
+
       const item = await apiPost<ShoppingItem>('/api/shopping', {
-        name: name.trim(),
+        name: exact ? exact.name : name.trim(),
+        category_id: exact?.category_id ?? null,
         quantity: parsed[i].quantity ?? null,
       }).catch(() => null);
       if (item) added.push(item);
