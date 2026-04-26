@@ -83,6 +83,110 @@ function parseTags(tags: string | string[]): string[] {
   try { return JSON.parse(tags); } catch { return []; }
 }
 
+// ─── Tag autocomplete ─────────────────────────────────────────────────────────
+
+const ALL_TAGS = [
+  'vegetar', 'fisk', 'kylling', 'oksekød', 'pasta', 'suppe', 'salat',
+  'dessert', 'hurtig', 'grill', 'jul', 'italiensk', 'asiatisk', 'mexicansk',
+  'indisk', 'græsk', 'mellemøstlig', 'nordisk', 'fransk', 'spansk',
+];
+
+function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [input, setInput] = useState('');
+  const [showDrop, setShowDrop] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = ALL_TAGS.filter(t =>
+    !tags.includes(t) && t.startsWith(input.toLowerCase().trim())
+  );
+
+  const addTag = (tag: string) => {
+    const t = tag.trim().toLowerCase();
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setInput('');
+    setShowDrop(false);
+    inputRef.current?.focus();
+  };
+
+  const removeTag = (tag: string) => onChange(tags.filter(t => t !== tag));
+
+  const handleKey = (e: React.KeyboardEvent) => {
+    if ((e.key === ',' || e.key === 'Enter') && input.trim()) {
+      e.preventDefault();
+      addTag(input);
+    } else if (e.key === 'Backspace' && !input && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  };
+
+  return (
+    <div style={ts.wrap} onClick={() => inputRef.current?.focus()}>
+      {tags.map(tag => (
+        <span key={tag} style={ts.pill}>
+          {tag}
+          <button type="button" style={ts.pillX} onClick={e => { e.stopPropagation(); removeTag(tag); }}>×</button>
+        </span>
+      ))}
+      <div style={{ position: 'relative', flex: 1, minWidth: 80 }}>
+        <input
+          ref={inputRef}
+          style={ts.input}
+          value={input}
+          onChange={e => { setInput(e.target.value); setShowDrop(true); }}
+          onFocus={() => setShowDrop(true)}
+          onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+          onKeyDown={handleKey}
+          placeholder={tags.length === 0 ? 'Tilføj tags…' : ''}
+        />
+        {showDrop && (filtered.length > 0 || input.trim()) && (
+          <div style={ts.drop}>
+            {filtered.map(t => (
+              <button key={t} type="button" style={ts.dropItem} onMouseDown={() => addTag(t)}>{t}</button>
+            ))}
+            {input.trim() && !ALL_TAGS.includes(input.trim().toLowerCase()) && !tags.includes(input.trim().toLowerCase()) && (
+              <button type="button" style={{ ...ts.dropItem, color: 'var(--accent)' }} onMouseDown={() => addTag(input)}>
+                + Tilføj "{input.trim()}"
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const ts: Record<string, React.CSSProperties> = {
+  wrap: {
+    display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+    padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8,
+    background: 'var(--bg-primary)', cursor: 'text', minHeight: 44,
+  },
+  pill: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    background: '#e3f0fc', color: '#1565C0', borderRadius: 20,
+    padding: '3px 10px', fontSize: 13, fontWeight: 500,
+  },
+  pillX: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: '#1565C0', fontSize: 15, lineHeight: 1, padding: '0 0 0 2px',
+  },
+  input: {
+    border: 'none', outline: 'none', background: 'transparent',
+    fontSize: 15, color: 'var(--text-primary)', width: '100%', minHeight: 28,
+  },
+  drop: {
+    position: 'absolute', top: '100%', left: 0, right: 0,
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    zIndex: 50, overflow: 'hidden',
+  },
+  dropItem: {
+    display: 'block', width: '100%', padding: '10px 14px', textAlign: 'left',
+    background: 'none', border: 'none', fontSize: 14, cursor: 'pointer',
+    color: 'var(--text-primary)', borderBottom: '1px solid var(--border)',
+  },
+};
+
 // ─── IngredientRow ────────────────────────────────────────────────────────────
 
 function IngredientRow({ ing, onChange, onRemove }: {
@@ -239,7 +343,7 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
   const [url, setUrl] = useState(recipe?.url ?? '');
   const [servings, setServings] = useState(String(recipe?.servings ?? 4));
   const [prepMinutes, setPrepMinutes] = useState(recipe?.prep_minutes != null ? String(recipe.prep_minutes) : '');
-  const [tagInput, setTagInput] = useState(parseTags(recipe?.tags ?? '[]').join(', '));
+  const [tags, setTags] = useState<string[]>(parseTags(recipe?.tags ?? '[]'));
   const [rating, setRating] = useState(recipe?.rating ?? 0);
   const [ingredientTab, setIngredientTab] = useState<'text' | 'list'>('text');
   const [ingredientsText, setIngredientsText] = useState(ingredientsToText(recipe?.ingredients ?? []));
@@ -268,7 +372,7 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
     setSaving(true);
     setError('');
     try {
-      const tagsArr = tagInput.split(',').map(t => t.trim()).filter(Boolean);
+      const tagsArr = tags;
       const body = {
         title: title.trim(),
         description: instructions.trim() || null,
@@ -341,8 +445,8 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
         <label style={s.label}>Link til opskrift</label>
         <input style={s.input} type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" />
 
-        <label style={s.label}>Tags <span style={s.hint}>(kommaseparerede)</span></label>
-        <input style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="vegetar, hurtig, pasta…" />
+        <label style={s.label}>Tags</label>
+        <TagInput tags={tags} onChange={setTags} />
 
         <div style={s.starRow}>
           <label style={s.label}>Bedømmelse</label>
