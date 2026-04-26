@@ -63,11 +63,18 @@ export function ingredientsToText(ings: RecipeIngredient[]): string {
   return ings.map(i => i.quantity ? `${i.quantity} ${i.name}` : i.name).join('\n');
 }
 
+// Parse a freetext line like "3 løg" or "500g hakket oksekød" into { quantity, name }.
+// Quantity prefix patterns: leading digits/fractions with optional unit (g, kg, ml, l, dl, stk, fed, etc.)
+const QTY_RE = /^(\d[\d/.,]*\s*(?:g|kg|ml|l|dl|cl|stk\.?|fed|bundt|dåse|pose|pk\.?|spsk\.?|tsk\.?|nip|hånd(?:fuld)?)?)\s+(.+)/i;
+
 export function textToIngredients(text: string, recipeId: string): RecipeIngredient[] {
   return text.split('\n').map((line, idx) => {
     const trimmed = line.trim();
     if (!trimmed) return null;
-    return { id: crypto.randomUUID(), recipe_id: recipeId, ingredient_id: null, name: trimmed, quantity: null, category_id: null, sort_order: idx };
+    const m = trimmed.match(QTY_RE);
+    const quantity = m ? m[1].trim() : null;
+    const name = m ? m[2].trim() : trimmed;
+    return { id: crypto.randomUUID(), recipe_id: recipeId, ingredient_id: null, name, quantity, category_id: null, sort_order: idx };
   }).filter(Boolean) as RecipeIngredient[];
 }
 
@@ -278,13 +285,24 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
       await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
 
       // For ingredients without a catalog link, do an exact-match lookup to check
-      // if they already exist in the catalog (e.g. typed manually without picking from dropdown)
+      // if they already exist in the catalog (e.g. typed manually without picking from dropdown).
+      // Strip any leading quantity prefix from the name before looking up (e.g. "3 løg" → "løg").
       const unlinked = ings.filter(i => !i.ingredient_id && i.name.trim());
       const trulyNew: typeof unlinked = [];
       for (const ing of unlinked) {
-        const matches = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(ing.name.trim())}`).catch(() => []);
-        const exact = matches.find(m => m.name.toLowerCase() === ing.name.trim().toLowerCase());
-        if (!exact) trulyNew.push(ing);
+        const rawName = ing.name.trim();
+        const stripped = rawName.replace(QTY_RE, '$2').trim();
+        const lookupName = stripped || rawName;
+        const matches = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(lookupName)}`).catch(() => []);
+        const exact = matches.find(m => m.name.toLowerCase() === lookupName.toLowerCase());
+        if (exact) {
+          // Link ingredient to catalog entry so it gets the right category
+          ing.ingredient_id = exact.id;
+          ing.category_id = exact.category_id;
+          ing.name = exact.name;
+        } else {
+          trulyNew.push({ ...ing, name: lookupName });
+        }
       }
 
       if (trulyNew.length > 0) {

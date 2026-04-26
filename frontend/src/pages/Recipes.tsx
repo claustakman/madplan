@@ -208,9 +208,18 @@ function DetailModal({ recipe, onClose, onSaved, onDeleted }: DetailModalProps) 
     setAddingToCart(true);
     try {
       for (const ing of ings) {
+        let categoryId = ing.category_id ?? null;
+        // If no category linked, look up in catalog by name to get the right category
+        if (!categoryId && ing.name?.trim()) {
+          const matches = await apiGet<Array<{ id: string; name: string; category_id: string | null }>>(
+            `/api/ingredients?q=${encodeURIComponent(ing.name.trim())}`
+          ).catch(() => []);
+          const exact = matches.find(m => m.name.toLowerCase() === ing.name.trim().toLowerCase());
+          if (exact) categoryId = exact.category_id;
+        }
         await apiPost('/api/shopping', {
           name: ing.name,
-          category_id: ing.category_id ?? null,
+          category_id: categoryId,
           quantity: ing.quantity ?? null,
         });
       }

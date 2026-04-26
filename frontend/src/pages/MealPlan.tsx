@@ -39,7 +39,7 @@ interface FullRecipe extends Recipe {
   description: string | null;
   url: string | null;
   rating: number;
-  ingredients: { id: string; name: string; quantity: string | null }[];
+  ingredients: { id: string; name: string; quantity: string | null; category_id: string | null }[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -368,7 +368,16 @@ function RecipeDetailModal({ recipeId, onClose }: { recipeId: string; onClose: (
     if (!recipe || recipe.ingredients.length === 0) return;
     setAddingToCart(true);
     for (const ing of recipe.ingredients) {
-      await apiPost('/api/shopping', { name: ing.name, quantity: ing.quantity ?? null }).catch(() => null);
+      let categoryId = ing.category_id ?? null;
+      // Look up catalog if no category linked, to get the right category
+      if (!categoryId && ing.name?.trim()) {
+        const matches = await apiGet<Array<{ id: string; name: string; category_id: string | null }>>(
+          `/api/ingredients?q=${encodeURIComponent(ing.name.trim())}`
+        ).catch(() => []);
+        const exact = matches.find(m => m.name.toLowerCase() === ing.name.trim().toLowerCase());
+        if (exact) categoryId = exact.category_id;
+      }
+      await apiPost('/api/shopping', { name: ing.name, category_id: categoryId, quantity: ing.quantity ?? null }).catch(() => null);
     }
     setAddingToCart(false);
     setCartDone(true);
