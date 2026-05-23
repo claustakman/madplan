@@ -492,7 +492,8 @@ function AddModal({ onClose, onAdded }: {
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.modalHandle} />
 
-        <div style={s.searchWrap}>
+        {/* Søgefelt med dropdown — position: relative så dropdown kan anchores */}
+        <div style={{ position: 'relative' }}>
           <input
             ref={inputRef}
             style={s.searchInput}
@@ -500,26 +501,26 @@ function AddModal({ onClose, onAdded }: {
             value={query}
             onChange={e => search(e.target.value)}
           />
+
+          {/* Forslag som absolut dropdown — påvirker ikke layout */}
+          {suggestions.length > 0 && (
+            <div style={s.suggestionDrop}>
+              {suggestions.map(ing => (
+                <button
+                  key={ing.id}
+                  style={s.suggestionRow}
+                  onClick={() => addFromSuggestion(ing)}
+                  disabled={adding}
+                >
+                  <span style={s.sugName}>{ing.name}</span>
+                  <span style={s.sugCat}>{ing.category_name ?? ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Forslag */}
-        {suggestions.length > 0 && (
-          <div style={s.suggestionList}>
-            {suggestions.map(ing => (
-              <button
-                key={ing.id}
-                style={s.suggestionRow}
-                onClick={() => addFromSuggestion(ing)}
-                disabled={adding}
-              >
-                <span style={s.sugName}>{ing.name}</span>
-                <span style={s.sugCat}>{ing.category_name ?? ''}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Ingen match — vælg kategori */}
+        {/* Ingen match — vælg kategori (vises stabilt under søgefeltet) */}
         {noMatch && query.trim() && (
           <div style={s.noMatchWrap}>
             <p style={s.noMatchTitle}>
@@ -753,18 +754,24 @@ const s: Record<string, React.CSSProperties> = {
   modalHandle: { width: 40, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto 8px', flexShrink: 0 },
 
   // Add modal
-  searchWrap: { position: 'relative' },
   searchInput: {
     width: '100%', padding: '12px 14px', borderRadius: 10,
     border: '1.5px solid var(--accent)', background: 'var(--bg-primary)',
     fontSize: 16, minHeight: 48, outline: 'none', color: 'var(--text-primary)',
+    boxSizing: 'border-box' as const,
   },
-  suggestionList: { display: 'flex', flexDirection: 'column', gap: 0 },
+  suggestionDrop: {
+    position: 'absolute' as const, top: 'calc(100% + 4px)', left: 0, right: 0,
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+    zIndex: 50, maxHeight: 260, overflowY: 'auto' as const,
+  },
   suggestionRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '13px 4px', background: 'none', border: 'none',
+    padding: '13px 14px', background: 'none', border: 'none',
     borderBottom: '1px solid var(--border)', cursor: 'pointer',
-    fontSize: 15, color: 'var(--text-primary)', minHeight: 48, textAlign: 'left',
+    fontSize: 15, color: 'var(--text-primary)', minHeight: 48, textAlign: 'left' as const,
+    width: '100%',
   },
   sugName: { fontWeight: 500 },
   sugCat: { fontSize: 12, color: 'var(--text-secondary)' },
