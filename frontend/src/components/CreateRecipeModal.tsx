@@ -172,7 +172,7 @@ const ts: Record<string, React.CSSProperties> = {
   },
   input: {
     border: 'none', outline: 'none', background: 'transparent',
-    fontSize: 15, color: 'var(--text-primary)', width: '100%', minHeight: 28,
+    fontSize: 16, color: 'var(--text-primary)', width: '100%', minHeight: 28,
   },
   drop: {
     position: 'absolute', top: '100%', left: 0, right: 0,
@@ -605,9 +605,9 @@ const s: Record<string, React.CSSProperties> = {
     background: 'var(--bg-primary, #fafafa)',
   },
   ingRow: { display: 'flex', gap: 6, alignItems: 'center' },
-  ingQty: { width: 72, padding: '8px', fontSize: 14, border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1a1a1a)', flexShrink: 0, boxSizing: 'border-box' as const },
+  ingQty: { width: 72, padding: '8px', fontSize: 16, border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1a1a1a)', flexShrink: 0, boxSizing: 'border-box' as const },
   ingNameWrap: { flex: 1, position: 'relative', minWidth: 0 },
-  ingName: { width: '100%', padding: '8px 10px', fontSize: 14, border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1a1a1a)', boxSizing: 'border-box' as const },
+  ingName: { width: '100%', padding: '8px 10px', fontSize: 16, border: '1px solid var(--border, #e0e0e0)', borderRadius: 6, background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1a1a1a)', boxSizing: 'border-box' as const },
   dropdown: { position: 'absolute' as const, top: '100%', left: 0, right: 0, background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e0e0e0)', borderRadius: 8, zIndex: 400, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', maxHeight: 200, overflowY: 'auto' as const },
   dropItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 12px', fontSize: 14, background: 'none', border: 'none', borderBottom: '1px solid var(--border, #e0e0e0)', cursor: 'pointer', textAlign: 'left' as const, color: 'var(--text-primary, #1a1a1a)', fontFamily: 'inherit' },
   dropCat: { fontSize: 12, color: 'var(--text-secondary, #999)', marginLeft: 8, flexShrink: 0 },
@@ -619,7 +619,7 @@ const s: Record<string, React.CSSProperties> = {
   error: { color: '#e53935', fontSize: 13, margin: '2px 0 0' },
   catalogRow: { display: 'flex', alignItems: 'center', gap: 10 },
   catalogName: { flex: 1, fontSize: 15, color: 'var(--text-primary)', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  catalogSelect: { flexShrink: 0, padding: '8px 10px', fontSize: 14, border: '1px solid var(--border, #e0e0e0)', borderRadius: 8, background: 'var(--bg-primary)', color: 'var(--text-primary)', maxWidth: 180 },
+  catalogSelect: { flexShrink: 0, padding: '8px 10px', fontSize: 16, border: '1px solid var(--border, #e0e0e0)', borderRadius: 8, background: 'var(--bg-primary)', color: 'var(--text-primary)', maxWidth: 180 },
   btnPrimary: { flex: 1, padding: '13px 0', background: 'var(--accent, #1976D2)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
   btnSecondary: { flex: 1, padding: '13px 0', background: '#f0f0f0', color: '#444', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' },
 };
