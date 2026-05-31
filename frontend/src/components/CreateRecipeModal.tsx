@@ -521,14 +521,13 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
 
 export default function CreateRecipeModal({ initialTitle = '', onCreated, onClose }: CreateRecipeModalProps) {
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <div style={s.header}>
-          <h2 style={s.title}>Ny opskrift</h2>
-          <button style={s.closeBtn} onClick={onClose}>✕</button>
-        </div>
-        <RecipeForm initialTitle={initialTitle} onSaved={onCreated} onCancel={onClose} />
+    <div style={s.fullscreen}>
+      <div style={s.header}>
+        <button style={s.backBtn} onClick={onClose}>← Tilbage</button>
+        <h2 style={s.title}>Ny opskrift</h2>
+        <div style={{ width: 80 }} />
       </div>
+      <RecipeForm initialTitle={initialTitle} onSaved={onCreated} onCancel={onClose} />
     </div>
   );
 }
@@ -536,48 +535,44 @@ export default function CreateRecipeModal({ initialTitle = '', onCreated, onClos
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: {
+  fullscreen: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.4)',
+    background: 'var(--bg-primary, #f5f5f3)',
     zIndex: 300,
     display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  modal: {
-    background: 'var(--bg-card, #fff)',
-    borderRadius: '20px 20px 0 0',
-    width: '100%',
-    maxWidth: 640,
-    maxHeight: '92vh',
-    display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden',
+    overflowY: 'hidden',
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '16px 20px 12px',
+    padding: '12px 16px',
+    background: 'var(--bg-card, #fff)',
     borderBottom: '1px solid var(--border, #e0e0e0)',
     flexShrink: 0,
   },
-  title: { fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary, #1a1a1a)' },
-  closeBtn: { background: 'none', border: 'none', fontSize: 20, color: 'var(--text-secondary, #999)', cursor: 'pointer', padding: 4 },
+  title: { fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text-primary, #1a1a1a)' },
+  backBtn: {
+    background: 'none', border: 'none', fontSize: 15, color: 'var(--accent, #1976D2)',
+    cursor: 'pointer', padding: '4px 0', fontWeight: 500, width: 80, textAlign: 'left' as const,
+  },
   body: {
     flex: 1,
     overflowY: 'auto',
-    padding: '12px 20px',
+    padding: '16px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 10,
+    paddingBottom: 16,
   },
   footer: {
     display: 'flex',
     gap: 10,
-    padding: '12px 20px max(12px, env(safe-area-inset-bottom))',
+    padding: '12px 16px max(12px, env(safe-area-inset-bottom))',
     borderTop: '1px solid var(--border, #e0e0e0)',
+    background: 'var(--bg-card, #fff)',
     flexShrink: 0,
   },
   label: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary, #444)', marginBottom: -4 },

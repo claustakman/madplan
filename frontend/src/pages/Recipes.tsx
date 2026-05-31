@@ -64,19 +64,42 @@ function AIRecipeModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     })),
   } : undefined;
 
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+  // When showing the form, use full screen (same as CreateRecipeModal)
+  if (phase === 'form' && suggestionAsRecipe) {
+    return (
+      <div style={styles.fullscreen}>
         <div style={styles.modalHeader}>
-          <h2 style={styles.modalTitle}>
-            {phase === 'form' ? suggestion?.title : '✨ Opret opskrift med AI'}
-          </h2>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
+          <button style={styles.backBtn} onClick={() => setPhase('input')}>← Tilbage</button>
+          <h2 style={styles.modalTitle}>{suggestion?.title}</h2>
+          <div style={{ width: 90 }} />
+        </div>
+        <RecipeForm
+          recipe={suggestionAsRecipe}
+          onSaved={r => onCreated(r)}
+          onCancel={() => setPhase('input')}
+        />
+      </div>
+    );
+  }
+
+  // Input + loading phases: compact slide-up sheet
+  return (
+    <div style={aiS.overlay} onClick={onClose}>
+      <div style={aiS.sheet} onClick={e => e.stopPropagation()}>
+        <div style={aiS.sheetHandle} />
+        <div style={aiS.sheetHeader}>
+          <h2 style={aiS.sheetTitle}>✨ Opret opskrift med AI</h2>
+          <button style={aiS.sheetClose} onClick={onClose}>✕</button>
         </div>
 
-        {phase === 'input' && (
+        {phase === 'loading' ? (
+          <div style={aiS.loading}>
+            <div style={aiS.spinner} />
+            <p style={aiS.loadingText}>AI genererer opskrift…</p>
+          </div>
+        ) : (
           <>
-            <div style={styles.modalBody}>
+            <div style={aiS.sheetBody}>
               <label style={aiS.label}>Beskriv hvad du vil lave</label>
               <textarea
                 ref={inputRef}
@@ -96,7 +119,7 @@ function AIRecipeModal({ onClose, onCreated }: { onClose: () => void; onCreated:
               />
               {error && <p style={aiS.error}>{error}</p>}
             </div>
-            <div style={styles.modalFooter}>
+            <div style={aiS.sheetFooter}>
               <button style={styles.btnSecondary} onClick={onClose}>Annuller</button>
               <button
                 style={{ ...styles.btnPrimary, opacity: prompt.trim() || url.trim() ? 1 : 0.5 }}
@@ -108,27 +131,20 @@ function AIRecipeModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             </div>
           </>
         )}
-
-        {phase === 'loading' && (
-          <div style={aiS.loading}>
-            <div style={aiS.spinner} />
-            <p style={aiS.loadingText}>AI genererer opskrift…</p>
-          </div>
-        )}
-
-        {phase === 'form' && suggestionAsRecipe && (
-          <RecipeForm
-            recipe={suggestionAsRecipe}
-            onSaved={r => onCreated(r)}
-            onCancel={() => setPhase('input')}
-          />
-        )}
       </div>
     </div>
   );
 }
 
 const aiS: Record<string, React.CSSProperties> = {
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'flex-end' },
+  sheet: { width: '100%', background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column' as const },
+  sheetHandle: { width: 40, height: 4, background: 'var(--border)', borderRadius: 2, margin: '12px auto 0' },
+  sheetHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' },
+  sheetTitle: { fontSize: 16, fontWeight: 700, margin: 0 },
+  sheetClose: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-secondary)', cursor: 'pointer', padding: 4 },
+  sheetBody: { padding: '16px', display: 'flex', flexDirection: 'column' as const, gap: 10 },
+  sheetFooter: { display: 'flex', gap: 10, padding: '12px 16px calc(16px + env(safe-area-inset-bottom))', borderTop: '1px solid var(--border)' },
   label: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: -4 },
   opt: { fontWeight: 400, color: '#bbb' },
   textarea: { width: '100%', padding: '10px 12px', fontSize: 16, border: '1px solid var(--border)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' as const, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'inherit', resize: 'none' as const },
@@ -231,94 +247,91 @@ function DetailModal({ recipe, onClose, onSaved, onDeleted }: DetailModalProps) 
   }
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={e => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          {editing ? (
-            <h2 style={styles.modalTitle}>{recipe.title}</h2>
-          ) : (
-            <h2 style={styles.modalTitle}>{recipe.title}</h2>
-          )}
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
-        </div>
+    <div style={styles.fullscreen}>
+      <div style={styles.modalHeader}>
+        <button style={styles.backBtn} onClick={editing ? () => setEditing(false) : onClose}>
+          ← {editing ? 'Annuller' : 'Tilbage'}
+        </button>
+        <h2 style={styles.modalTitle}>{recipe.title}</h2>
+        <div style={{ width: 90 }} />
+      </div>
 
-        {editing ? (
-          <RecipeForm
-            recipe={recipe}
-            onSaved={r => { onSaved(r as Recipe); setEditing(false); }}
-            onCancel={() => setEditing(false)}
-          />
-        ) : (
-          <>
-            <div style={styles.modalBody}>
-              <div style={styles.viewBody}>
-                {recipe.rating > 0 && <StarDisplay rating={recipe.rating} size={22} />}
+      {editing ? (
+        <RecipeForm
+          recipe={recipe}
+          onSaved={r => { onSaved(r as Recipe); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <>
+          <div style={styles.modalBody}>
+            <div style={styles.viewBody}>
+              {recipe.rating > 0 && <StarDisplay rating={recipe.rating} size={22} />}
 
-                {recipe.url && (
-                  <a
-                    href={recipe.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={styles.recipeLink}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    🔗 Åbn opskrift
-                  </a>
-                )}
+              {recipe.url && (
+                <a
+                  href={recipe.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={styles.recipeLink}
+                  onClick={e => e.stopPropagation()}
+                >
+                  🔗 Åbn opskrift
+                </a>
+              )}
 
-                {tags.length > 0 && (
-                  <div style={styles.tagRow}>
-                    {tags.map(t => <span key={t} style={styles.tag}>{t}</span>)}
+              {tags.length > 0 && (
+                <div style={styles.tagRow}>
+                  {tags.map(t => <span key={t} style={styles.tag}>{t}</span>)}
+                </div>
+              )}
+
+              {recipe.ingredients && recipe.ingredients.length > 0 && (
+                <div style={styles.ingSection}>
+                  <div style={styles.ingHeaderRow}>
+                    <h3 style={styles.ingHeader}>Ingredienser</h3>
+                    <button
+                      style={cartDone ? styles.cartBtnDone : styles.cartBtn}
+                      onClick={addAllToShopping}
+                      disabled={addingToCart}
+                    >
+                      {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj alle'}
+                    </button>
                   </div>
-                )}
-
-                {recipe.ingredients && recipe.ingredients.length > 0 && (
-                  <div style={styles.ingSection}>
-                    <div style={styles.ingHeaderRow}>
-                      <h3 style={styles.ingHeader}>Ingredienser</h3>
-                      <button
-                        style={cartDone ? styles.cartBtnDone : styles.cartBtn}
-                        onClick={addAllToShopping}
-                        disabled={addingToCart}
-                      >
-                        {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj alle til indkøbsliste'}
-                      </button>
+                  {recipe.ingredients.map(ing => (
+                    <div key={ing.id} style={styles.ingViewRow}>
+                      {ing.quantity && <span style={styles.ingQty}>{ing.quantity}</span>}
+                      <span>{ing.name}</span>
                     </div>
-                    {recipe.ingredients.map(ing => (
-                      <div key={ing.id} style={styles.ingViewRow}>
-                        {ing.quantity && <span style={styles.ingQty}>{ing.quantity}</span>}
-                        <span>{ing.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  ))}
+                </div>
+              )}
 
-                {recipe.description && (
-                  <div style={styles.ingSection}>
-                    <h3 style={styles.ingHeader}>Fremgangsmåde</h3>
-                    <p style={styles.instructionsText}>{recipe.description}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={styles.modalFooter}>
-              {confirmDelete ? (
-                <>
-                  <span style={styles.confirmText}>Slet opskrift?</span>
-                  <button style={styles.btnSecondary} onClick={() => setConfirmDelete(false)}>Nej</button>
-                  <button style={styles.btnDanger} onClick={handleDelete}>Slet</button>
-                </>
-              ) : (
-                <>
-                  <button style={styles.btnDanger} onClick={() => setConfirmDelete(true)}>Slet</button>
-                  <button style={styles.btnPrimary} onClick={() => setEditing(true)}>Rediger</button>
-                </>
+              {recipe.description && (
+                <div style={styles.ingSection}>
+                  <h3 style={styles.ingHeader}>Fremgangsmåde</h3>
+                  <p style={styles.instructionsText}>{recipe.description}</p>
+                </div>
               )}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+
+          <div style={styles.modalFooter}>
+            {confirmDelete ? (
+              <>
+                <span style={styles.confirmText}>Slet opskrift?</span>
+                <button style={styles.btnSecondary} onClick={() => setConfirmDelete(false)}>Nej</button>
+                <button style={styles.btnDanger} onClick={handleDelete}>Slet</button>
+              </>
+            ) : (
+              <>
+                <button style={styles.btnDanger} onClick={() => setConfirmDelete(true)}>Slet</button>
+                <button style={styles.btnPrimary} onClick={() => setEditing(true)}>Rediger</button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -732,56 +745,54 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-secondary)',
     fontSize: 15,
   },
-  overlay: {
+  fullscreen: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.45)',
+    background: 'var(--bg-primary)',
     zIndex: 300,
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  modal: {
-    width: '100%',
-    maxWidth: 600,
-    background: 'var(--bg-card)',
-    borderRadius: '20px 20px 0 0',
-    maxHeight: '90dvh',
     display: 'flex',
     flexDirection: 'column',
   },
   modalHeader: {
     display: 'flex',
-    alignItems: 'flex-start',
-    gap: 8,
-    padding: '20px 20px 12px',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    background: 'var(--bg-card)',
     borderBottom: '1px solid var(--border)',
     flexShrink: 0,
   },
   modalTitle: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: 700,
     margin: 0,
+    textAlign: 'center' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
   },
-  closeBtn: {
+  backBtn: {
     background: 'none',
     border: 'none',
-    fontSize: 18,
-    color: 'var(--text-secondary)',
+    fontSize: 15,
+    color: 'var(--accent)',
     cursor: 'pointer',
-    padding: 4,
-    lineHeight: 1,
+    padding: '4px 0',
+    fontWeight: 500,
+    width: 90,
+    textAlign: 'left' as const,
     flexShrink: 0,
   },
   modalBody: {
     flex: 1,
     overflowY: 'auto',
-    padding: '16px 20px',
+    padding: '16px',
   },
   modalFooter: {
-    padding: '12px 20px calc(12px + env(safe-area-inset-bottom))',
+    padding: '12px 16px calc(12px + env(safe-area-inset-bottom))',
     borderTop: '1px solid var(--border)',
+    background: 'var(--bg-card)',
     display: 'flex',
     gap: 10,
     alignItems: 'center',

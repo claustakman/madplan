@@ -385,52 +385,51 @@ function RecipeDetailModal({ recipeId, onClose }: { recipeId: string; onClose: (
   };
 
   return (
-    <div style={styles.rdOverlay} onClick={onClose}>
-      <div style={styles.rdModal} onClick={e => e.stopPropagation()}>
-        <div style={styles.rdHeader}>
-          <h2 style={styles.rdTitle}>{recipe?.title ?? '…'}</h2>
-          <button style={styles.rdClose} onClick={onClose}>✕</button>
-        </div>
-        <div style={styles.rdBody}>
-          {!recipe ? (
-            <p style={{ color: '#999', fontSize: 14 }}>Indlæser…</p>
-          ) : (
-            <>
-              {recipe.url && (
-                <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={styles.rdLink}
-                  onClick={e => e.stopPropagation()}>
-                  🔗 Åbn opskrift
-                </a>
-              )}
-              {recipe.ingredients.length > 0 && (
-                <div style={styles.rdSection}>
-                  <div style={styles.rdIngHeader}>
-                    <span style={styles.rdSectionTitle}>Ingredienser</span>
-                    <button
-                      style={cartDone ? styles.rdCartDone : styles.rdCart}
-                      onClick={addAllToShopping}
-                      disabled={addingToCart}
-                    >
-                      {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj til indkøbsliste'}
-                    </button>
+    <div style={styles.rdFullscreen}>
+      <div style={styles.rdHeader}>
+        <button style={styles.rdBack} onClick={onClose}>← Tilbage</button>
+        <h2 style={styles.rdTitle}>{recipe?.title ?? '…'}</h2>
+        <div style={{ width: 80 }} />
+      </div>
+      <div style={styles.rdBody}>
+        {!recipe ? (
+          <p style={{ color: '#999', fontSize: 14 }}>Indlæser…</p>
+        ) : (
+          <>
+            {recipe.url && (
+              <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={styles.rdLink}
+                onClick={e => e.stopPropagation()}>
+                🔗 Åbn opskrift
+              </a>
+            )}
+            {recipe.ingredients.length > 0 && (
+              <div style={styles.rdSection}>
+                <div style={styles.rdIngHeader}>
+                  <span style={styles.rdSectionTitle}>Ingredienser</span>
+                  <button
+                    style={cartDone ? styles.rdCartDone : styles.rdCart}
+                    onClick={addAllToShopping}
+                    disabled={addingToCart}
+                  >
+                    {cartDone ? '✓ Tilføjet' : addingToCart ? 'Tilføjer…' : '🛒 Tilføj alle'}
+                  </button>
+                </div>
+                {recipe.ingredients.map(ing => (
+                  <div key={ing.id} style={styles.rdIng}>
+                    {ing.quantity && <span style={styles.rdQty}>{ing.quantity}</span>}
+                    <span>{ing.name}</span>
                   </div>
-                  {recipe.ingredients.map(ing => (
-                    <div key={ing.id} style={styles.rdIng}>
-                      {ing.quantity && <span style={styles.rdQty}>{ing.quantity}</span>}
-                      <span>{ing.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {recipe.description && (
-                <div style={styles.rdSection}>
-                  <span style={styles.rdSectionTitle}>Fremgangsmåde</span>
-                  <p style={styles.rdDesc}>{recipe.description}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+            {recipe.description && (
+              <div style={styles.rdSection}>
+                <span style={styles.rdSectionTitle}>Fremgangsmåde</span>
+                <p style={styles.rdDesc}>{recipe.description}</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1004,24 +1003,26 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 2,
   },
   // ── RecipeDetailModal ─────────────────────────────────────────────────────
-  rdOverlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-    zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-  },
-  rdModal: {
-    width: '100%', maxWidth: 600, background: '#fff',
-    borderRadius: '20px 20px 0 0', maxHeight: '90dvh', display: 'flex', flexDirection: 'column',
+  rdFullscreen: {
+    position: 'fixed', inset: 0, background: 'var(--bg-primary)',
+    zIndex: 300, display: 'flex', flexDirection: 'column',
   },
   rdHeader: {
-    display: 'flex', alignItems: 'flex-start', gap: 8,
-    padding: '20px 20px 12px', borderBottom: '1px solid #e0e0e0', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '12px 16px', background: 'var(--bg-card)',
+    borderBottom: '1px solid var(--border)', flexShrink: 0,
   },
-  rdTitle: { flex: 1, fontSize: 20, fontWeight: 700, margin: 0 },
-  rdClose: {
-    background: 'none', border: 'none', fontSize: 18, color: '#999',
-    cursor: 'pointer', padding: 4, lineHeight: 1, flexShrink: 0,
+  rdTitle: {
+    flex: 1, fontSize: 17, fontWeight: 700, margin: 0,
+    textAlign: 'center' as const, overflow: 'hidden',
+    textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
   },
-  rdBody: { flex: 1, overflowY: 'auto' as const, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 },
+  rdBack: {
+    background: 'none', border: 'none', fontSize: 15, color: 'var(--accent)',
+    cursor: 'pointer', padding: '4px 0', fontWeight: 500, width: 80,
+    textAlign: 'left' as const, flexShrink: 0,
+  },
+  rdBody: { flex: 1, overflowY: 'auto' as const, padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 },
   rdLink: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
     padding: '10px 16px', background: '#1976D2', color: '#fff',
