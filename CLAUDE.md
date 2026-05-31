@@ -276,11 +276,14 @@ Token gemmes i `localStorage` under nøglen `madplan_token`.
   - `--text-secondary: #666666`
   - `--border: #e0e0e0`
   - `--danger: #e53935`
-- `font-size: 16px` på alle inputs (undgår iOS auto-zoom)
+- `font-size: 16px` på alle inputs, selects og textareas (undgår iOS auto-zoom) — ingen undtagelser
 - Touch targets: `min-height: 44px` på knapper og inputs
 - Bundnavigation (fast, 4 ikoner): 🛒 Indkøb · 🍽️ Madplan · 📖 Opskrifter · ☰ Mere
 - Mere-panel (slide-up sheet): Arkiv · Katalog · [Brugere — kun admin] · Indstillinger · Profil · Log ud
 - `padding-bottom: env(safe-area-inset-bottom)` på bundnav
+- Søgeresultater i AddModal: absolut positioneret dropdown (modalen hopper ikke)
+- Tunge views (opskrift opret/rediger/vis, RecipeDetailModal): full screen med sticky header og "← Tilbage"-knap — ikke slide-up
+- Slide-up modals bruges kun til: DayEditor, AI diktering, AI madplan-prompt, brugeropret/rediger, ingrediens/kategori-rediger
 
 ---
 
@@ -454,21 +457,22 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 ## Fase 3 — Implementerede features
 
 ### Opskrifter (/opskrifter)
-- CRUD: opret, vis, rediger, slet
+- CRUD: opret, vis, rediger, slet — alle som **full screen views** (ikke slide-up)
 - Søgning (debounced) + tag-filter (collapsible dropdown)
 - 125 opskrifter importeret fra Safari-bookmarks via Node.js-script
 - Hvert kort viser: titel, 🔗 link-indikator, tags (prep/servings vises ikke på kort)
+- Tags: pill-baseret input med autocomplete fra fast tag-liste + fritekst; Komma/Enter tilføjer
 - Tags som blå pills (`#e3f0fc` baggrund, `#1565C0` tekst)
-- Detailview: link-knap, meta (tid/portioner), tags, ingrediensliste, fremgangsmåde
+- Detailview: link-knap, tags, bedømmelse, ingrediensliste, fremgangsmåde
 - `description`-kolonne i DB genbruges til fremgangsmåde/instruktioner
 - Ingrediensliste i view-mode: mængde + navn, `🛒 Tilføj alle til indkøbsliste`-knap
-  - Knappen POSTer alle ingredienser til `/api/shopping` og viser "✓ Tilføjet" i 2,5 sek.
+  - Opslag mod katalog for ingredienser uden `category_id` — korrekt kategori i indkøbsliste
 - Edit-mode ingredienser: to faner
-  - **Tekst**: fritekst textarea, én ingrediens per linje — kan paste fra hjemmesider
+  - **Tekst**: fritekst textarea, én ingrediens per linje — parser automatisk mængde fra navn (`"3 løg"` → qty: `"3"`, name: `"løg"`)
   - **Liste**: strukturerede rækker `[mgl.-felt] [navn med autocomplete] [✕]` + `+ Tilføj ingrediens`
   - Skift mellem faner konverterer data automatisk (text↔structured)
   - Autocomplete: debounced (300ms) GET `/api/ingredients?q=…`, viser navn + kategori
-  - Ved gem: eksakt navneopslag mod katalog — kun faktisk nye ingredienser fremhæves
+  - Ved gem: eksakt navneopslag mod katalog — linker ingredient_id + category_id, kun faktisk nye fremhæves
 - `PUT /api/recipes/{id}/ingredients`: erstatter alle ingredienser atomisk
 - Indkøbsliste UX: blå tema, kategori-shading, fed mængde, lilla butik
 - Mængde vises til venstre for ingrediensnavn med fed skrift
@@ -481,6 +485,8 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - Mængde vises til venstre for varenavn med fed skrift
 - Flimmer-fix: 600ms delay på `noMatch`-visning ved kategorivælger
 - "Ryd afkrydsede" knap placeret i afkrydset-sektionens header som "Ryd alle"
+- Søgeresultater vises som absolut dropdown (modal-højde hopper ikke)
+- AI-parsede varer slås op i katalog før tilføjelse (korrekt kategori, kanonisk navn)
 
 ---
 
@@ -497,7 +503,8 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
   - Ansvarlig bruger-vælger (initialer-avatar på dag-kort)
   - Kan gemme kun bruger uden at skifte opskrift
 - Klik på opskrift-pill åbner RecipeDetailModal (stopPropagation)
-- RecipeDetailModal: ingrediensliste, fremgangsmåde, "Tilføj til indkøbsliste"
+- RecipeDetailModal: **full screen**, ingrediensliste, fremgangsmåde, "Tilføj til indkøbsliste"
+  - Opslag mod katalog for ingredienser uden `category_id` — korrekt kategori i indkøbsliste
 - Ugehandlinger: 🛒 Opdater indkøbsliste, 📦 Arkiver uge
 - `assigned_user_id` på `meal_plan_days` (migration 0006)
 - 🗓 AI-madplan: prompt → forslag for valgte dage → review med toggle → apply
