@@ -472,7 +472,8 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
   - **Liste**: strukturerede rækker `[mgl.-felt] [navn med autocomplete] [✕]` + `+ Tilføj ingrediens`
   - Skift mellem faner konverterer data automatisk (text↔structured)
   - Autocomplete: debounced (300ms) GET `/api/ingredients?q=…`, viser navn + kategori
-  - Ved gem: eksakt navneopslag mod katalog — linker ingredient_id + category_id, kun faktisk nye fremhæves
+  - Ved gem: eksakt navneopslag mod katalog (FØR PUT til serveren, ellers tabes linket) — linker ingredient_id + category_id, kun faktisk nye fremhæves
+  - Vælger brugeren kategori i "Gem til katalog?"-dialogen, re-PUT'es opskrift-ingredienserne med det nye ingredient_id/category_id
 - `PUT /api/recipes/{id}/ingredients`: erstatter alle ingredienser atomisk
 - Indkøbsliste UX: blå tema, kategori-shading, fed mængde, lilla butik
 - Mængde vises til venstre for ingrediensnavn med fed skrift
@@ -487,6 +488,10 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - "Ryd afkrydsede" knap placeret i afkrydset-sektionens header som "Ryd alle"
 - Søgeresultater vises som absolut dropdown (modal-højde hopper ikke)
 - AI-parsede varer slås op i katalog før tilføjelse (korrekt kategori, kanonisk navn)
+- `POST /api/shopping` undgår dubletter: findes en uncheckecd vare med samme navn (case-insensitive), opskrives mængden i stedet for at indsætte en ny række
+  - Numerisk mængde + samme enhed → lægges sammen (`500g` + `500g` = `1000 g`)
+  - Ingen mængde angivet → `×N`-tæller
+  - Enheder matcher ikke / ikke parsable → bevarer eksisterende mængde
 
 ---
 
@@ -495,6 +500,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 ### Madplan (/madplan)
 - To-ugers visning: "Denne uge" og "Næste uge" (tab-switch)
 - Plan oprettes automatisk hvis den ikke eksisterer (POST /api/mealplans)
+- Dato-helpers (`getMondayOfWeek`, `addDays`) formaterer altid med lokale dato-komponenter, **aldrig** `toISOString()` — UTC-konvertering ruller datoen en dag tilbage nær midnat i tidszoner foran UTC (fx dansk sommertid)
 - 7 dag-kort per uge: ugedagsnavn, dato, status (tom / Rester / fritekst / opskrift)
 - DayEditor (slide-up modal):
   - Søg i opskriftskatalog (debounced)
