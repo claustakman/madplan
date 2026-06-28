@@ -260,7 +260,7 @@ interface CatalogEntry {
 
 function CatalogModal({ entries, onDone }: {
   entries: CatalogEntry[];
-  onDone: () => void;
+  onDone: (saved: Record<string, { id: string; category_id: string | null }>) => void;
 }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryMap, setCategoryMap] = useState<Record<string, string | null>>(() =>
@@ -275,16 +275,19 @@ function CatalogModal({ entries, onDone }: {
 
   const saveAll = async () => {
     setSaving(true);
+    const saved: Record<string, { id: string; category_id: string | null }> = {};
     for (const entry of entries) {
-      await apiPost('/api/ingredients', {
+      const categoryId = categoryMap[entry.name] || null;
+      const created = await apiPost<{ id: string; category_id: string | null }>('/api/ingredients', {
         name: entry.name,
-        category_id: categoryMap[entry.name] || null,
+        category_id: categoryId,
         default_quantity: entry.quantity || null,
       }).catch(() => null);
+      if (created) saved[entry.name] = created;
     }
     setSaving(false);
     setDone(true);
-    setTimeout(onDone, 800);
+    setTimeout(() => onDone(saved), 800);
   };
 
   return (
@@ -319,7 +322,7 @@ function CatalogModal({ entries, onDone }: {
           </div>
         </div>
         <div style={s.footer}>
-          <button style={s.btnSecondary} onClick={onDone} disabled={saving}>Spring over</button>
+          <button style={s.btnSecondary} onClick={() => onDone({})} disabled={saving}>Spring over</button>
           <button
             style={{ ...s.btnPrimary, opacity: saving || done ? 0.7 : 1 }}
             onClick={saveAll}
@@ -386,11 +389,13 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
         ? await apiPut<RecipeData>(`/api/recipes/${recipe!.id}`, body)
         : await apiPost<RecipeData>('/api/recipes', body);
       const ings = getIngredients(saved.id);
-      await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
 
       // For ingredients without a catalog link, do an exact-match lookup to check
       // if they already exist in the catalog (e.g. typed manually without picking from dropdown).
       // Strip any leading quantity prefix from the name before looking up (e.g. "3 løg" → "løg").
+      // This must happen BEFORE the ingredients PUT below, so any catalog links found
+      // here are actually persisted — otherwise they'd only be reflected in local state
+      // and silently lost until the next save.
       const unlinked = ings.filter(i => !i.ingredient_id && i.name.trim());
       const trulyNew: typeof unlinked = [];
       for (const ing of unlinked) {
@@ -408,6 +413,8 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
           trulyNew.push({ ...ing, name: lookupName });
         }
       }
+
+      await apiPut(`/api/recipes/${saved.id}/ingredients`, ings);
 
       if (trulyNew.length > 0) {
         savedRecipeRef.current = saved;
@@ -428,9 +435,22 @@ export function RecipeForm({ recipe, initialTitle = '', onSaved, onCancel }: Rec
       {catalogEntries && (
         <CatalogModal
           entries={catalogEntries}
-          onDone={() => {
+          onDone={async (saved) => {
             setCatalogEntries(null);
-            onSaved({ ...savedRecipeRef.current!, ingredients: savedIngsRef.current });
+            const recipe = savedRecipeRef.current!;
+            let ings = savedIngsRef.current;
+
+            // Link newly-created catalog entries back to the recipe's ingredients
+            // and persist them, so the category isn't lost until the next edit.
+            if (Object.keys(saved).length > 0) {
+              ings = ings.map(ing => {
+                const match = saved[ing.name];
+                return match ? { ...ing, ingredient_id: match.id, category_id: match.category_id } : ing;
+              });
+              await apiPut(`/api/recipes/${recipe.id}/ingredients`, ings).catch(() => null);
+            }
+
+            onSaved({ ...recipe, ingredients: ings });
           }}
         />
       )}
