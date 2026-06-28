@@ -5,6 +5,42 @@ interface Env {
   JWT_SECRET: string;
 }
 
+// Parse a freetext quantity like "500g" or "2 stk" into { count, unit }.
+// Returns null if it doesn't start with a number.
+function parseQuantity(q: string): { count: number; unit: string } | null {
+  const m = q.trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if (!m) return null;
+  return { count: parseFloat(m[1].replace(',', '.')), unit: m[2].trim() };
+}
+
+// Combine two quantities when adding the same item again. If both are
+// numeric with the same unit, add the counts. If neither has a quantity,
+// fall back to a simple "×N" counter. Otherwise keep the existing quantity.
+function mergeQuantity(existing: string | null, incoming: string | null): string | null {
+  const a = existing?.trim() || null;
+  const b = incoming?.trim() || null;
+
+  if (!a && !b) return '×2';
+
+  if (a) {
+    const countMatch = a.match(/^×(\d+)$/);
+    if (countMatch) return `×${parseInt(countMatch[1], 10) + 1}`;
+  }
+
+  if (a && b) {
+    const pa = parseQuantity(a);
+    const pb = parseQuantity(b);
+    if (pa && pb && pa.unit.toLowerCase() === pb.unit.toLowerCase()) {
+      const total = pa.count + pb.count;
+      const formatted = Number.isInteger(total) ? String(total) : total.toFixed(1);
+      return pa.unit ? `${formatted} ${pa.unit}` : formatted;
+    }
+    return a;
+  }
+
+  return a ?? b;
+}
+
 const ITEM_SELECT = `
   SELECT
     s.id, s.name, s.quantity, s.store, s.checked,
@@ -37,15 +73,30 @@ export async function handleShopping(request: Request, env: Env): Promise<Respon
     const body = await request.json() as {
       name: string; category_id?: string; quantity?: string; store?: string;
     };
-    if (!body.name?.trim()) {
+    const name = body.name?.trim();
+    if (!name) {
       return Response.json({ error: 'Navn er påkrævet' }, { status: 400 });
+    }
+
+    // If an unchecked item with the same name already exists, bump its quantity
+    // instead of inserting a duplicate row.
+    const existing = await env.DB.prepare(
+      'SELECT id, quantity FROM shopping_items WHERE name = ? COLLATE NOCASE AND checked = 0'
+    ).bind(name).first<{ id: string; quantity: string | null }>();
+
+    if (existing) {
+      const mergedQuantity = mergeQuantity(existing.quantity, body.quantity ?? null);
+      await env.DB.prepare('UPDATE shopping_items SET quantity = ? WHERE id = ?')
+        .bind(mergedQuantity, existing.id).run();
+      const item = await env.DB.prepare(ITEM_SELECT + ' WHERE s.id = ?').bind(existing.id).first();
+      return Response.json(item, { status: 200 });
     }
 
     const id = crypto.randomUUID();
     const created_at = new Date().toISOString();
     await env.DB.prepare(
       'INSERT INTO shopping_items (id, name, category_id, quantity, store, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, body.name.trim(), body.category_id ?? null, body.quantity ?? null, body.store ?? null, user.id, created_at).run();
+    ).bind(id, name, body.category_id ?? null, body.quantity ?? null, body.store ?? null, user.id, created_at).run();
 
     const item = await env.DB.prepare(ITEM_SELECT + ' WHERE s.id = ?').bind(id).first();
     return Response.json(item, { status: 201 });

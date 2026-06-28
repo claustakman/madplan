@@ -113,7 +113,11 @@ export default function Shopping() {
   };
 
   const onAdded = (item: ShoppingItem) => {
-    setItems(prev => [...prev, item]);
+    // Server merges into an existing unchecked item with the same name instead of
+    // duplicating — update it in place if it's already in the list.
+    setItems(prev => prev.some(i => i.id === item.id)
+      ? prev.map(i => i.id === item.id ? item : i)
+      : [...prev, item]);
   };
 
   const onUpdated = (item: ShoppingItem) => {

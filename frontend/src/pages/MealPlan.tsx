@@ -44,19 +44,28 @@ interface FullRecipe extends Recipe {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Format a Date as YYYY-MM-DD using its local date components (never toISOString,
+// which converts to UTC and can roll the date by one day near midnight).
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function getMondayOfWeek(date: Date): string {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  return toDateStr(d);
 }
 
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  return toDateStr(d);
 }
 
 function formatDate(dateStr: string): string {
