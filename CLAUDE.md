@@ -467,6 +467,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - `description`-kolonne i DB genbruges til fremgangsmåde/instruktioner
 - Ingrediensliste i view-mode: mængde + navn, `🛒 Tilføj alle til indkøbsliste`-knap
   - Opslag mod katalog for ingredienser uden `category_id` — korrekt kategori i indkøbsliste
+  - Ingredienser der ikke findes i kataloget, tilføjes automatisk (uden kategori) så de er søgbare fremover
 - Edit-mode ingredienser: to faner
   - **Tekst**: fritekst textarea, én ingrediens per linje — parser automatisk mængde fra navn (`"3 løg"` → qty: `"3"`, name: `"løg"`)
   - **Liste**: strukturerede rækker `[mgl.-felt] [navn med autocomplete] [✕]` + `+ Tilføj ingrediens`
@@ -487,7 +488,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - Flimmer-fix: 600ms delay på `noMatch`-visning ved kategorivælger
 - "Ryd afkrydsede" knap placeret i afkrydset-sektionens header som "Ryd alle"
 - Søgeresultater vises som absolut dropdown (modal-højde hopper ikke)
-- AI-parsede varer slås op i katalog før tilføjelse (korrekt kategori, kanonisk navn)
+- AI-parsede varer slås op i katalog før tilføjelse (korrekt kategori, kanonisk navn); varer der ikke findes i kataloget tilføjes automatisk
 - `POST /api/shopping` undgår dubletter: findes en uncheckecd vare med samme navn (case-insensitive), opskrives mængden i stedet for at indsætte en ny række
   - Numerisk mængde + samme enhed → lægges sammen (`500g` + `500g` = `1000 g`)
   - Ingen mængde angivet → `×N`-tæller
@@ -511,6 +512,7 @@ INSERT INTO ingredient_categories (id, name, sort_order) VALUES
 - Klik på opskrift-pill åbner RecipeDetailModal (stopPropagation)
 - RecipeDetailModal: **full screen**, ingrediensliste, fremgangsmåde, "Tilføj til indkøbsliste"
   - Opslag mod katalog for ingredienser uden `category_id` — korrekt kategori i indkøbsliste
+  - Ingredienser der ikke findes i kataloget, tilføjes automatisk (uden kategori) så de er søgbare fremover
 - Ugehandlinger: 🛒 Opdater indkøbsliste, 📦 Arkiver uge
 - `assigned_user_id` på `meal_plan_days` (migration 0006)
 - 🗓 AI-madplan: prompt → forslag for valgte dage → review med toggle → apply
