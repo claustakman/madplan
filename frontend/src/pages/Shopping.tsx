@@ -319,9 +319,17 @@ function AIShoppingModal({ onClose, onAdded }: {
       const matches = await apiGet<Ingredient[]>(`/api/ingredients?q=${encodeURIComponent(name.trim())}`).catch(() => [] as Ingredient[]);
       const exact = matches.find(m => m.name.toLowerCase() === name.trim().toLowerCase());
 
+      let categoryId = exact?.category_id ?? null;
+      let canonicalName = exact ? exact.name : name.trim();
+      if (!exact) {
+        // Not in catalog — add it automatically
+        const created = await apiPost<Ingredient>('/api/ingredients', { name: name.trim() }).catch(() => null);
+        if (created) categoryId = created.category_id;
+      }
+
       const item = await apiPost<ShoppingItem>('/api/shopping', {
-        name: exact ? exact.name : name.trim(),
-        category_id: exact?.category_id ?? null,
+        name: canonicalName,
+        category_id: categoryId,
         quantity: parsed[i].quantity ?? null,
       }).catch(() => null);
       if (item) added.push(item);

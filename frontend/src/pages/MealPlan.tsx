@@ -378,13 +378,20 @@ function RecipeDetailModal({ recipeId, onClose }: { recipeId: string; onClose: (
     setAddingToCart(true);
     for (const ing of recipe.ingredients) {
       let categoryId = ing.category_id ?? null;
-      // Look up catalog if no category linked, to get the right category
       if (!categoryId && ing.name?.trim()) {
         const matches = await apiGet<Array<{ id: string; name: string; category_id: string | null }>>(
           `/api/ingredients?q=${encodeURIComponent(ing.name.trim())}`
         ).catch(() => []);
         const exact = matches.find(m => m.name.toLowerCase() === ing.name.trim().toLowerCase());
-        if (exact) categoryId = exact.category_id;
+        if (exact) {
+          categoryId = exact.category_id;
+        } else {
+          // Not in catalog — add it so future uses get the right category
+          const created = await apiPost<{ id: string; category_id: string | null }>(
+            '/api/ingredients', { name: ing.name.trim() }
+          ).catch(() => null);
+          if (created) categoryId = created.category_id;
+        }
       }
       await apiPost('/api/shopping', { name: ing.name, category_id: categoryId, quantity: ing.quantity ?? null }).catch(() => null);
     }
